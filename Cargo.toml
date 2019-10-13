@@ -1,0 +1,11 @@
+[package]
+name = "bitcoin-vanity"
+version = "0.1.0"
+authors = ["ndelvalle <nicolas.delvalle@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+secp256k1 = "0.15.5"
+bitcoin = "0.21.0"
+clap = "2.33.0"
+indicatif = "0.12.0"
