@@ -30,6 +30,5 @@ cargo run -- -help
 
 - [ ] Create a release build
 - [ ] Improve API adding more options
-- [ ] Implement multi thread support
 - [ ] Create tests
 - [ ] Integrate with a CI
