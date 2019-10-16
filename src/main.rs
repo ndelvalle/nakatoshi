@@ -1,32 +1,15 @@
-extern crate secp256k1;
-extern crate bitcoin;
-extern crate clap;
-extern crate indicatif;
-extern crate time;
-extern crate num_cpus;
+#![feature(test)]
 
 mod address;
 
 use std::time::Instant;
-use std::sync::mpsc;
-use std::sync::{ Arc, Mutex, atomic };
-use std::{ thread };
+use std::{thread, iter::repeat_with};
+
+use indicatif::{ MultiProgress, ProgressBar, HumanDuration };
+use rayon::iter::ParallelIterator;
+use secp256k1::Secp256k1;
 
 use address::Address;
-use indicatif::{ MultiProgress, ProgressBar, HumanDuration };
-
-fn calculate_address (starts_with: &str, should_stop: &atomic::AtomicBool, cpu_num: usize, spinner: ProgressBar) -> Address {
-    let mut address = Address::new();
-
-    while !address.starts_with(starts_with) && !should_stop.load(atomic::Ordering::Relaxed) {
-        address = Address::new();
-        let message = format!("CPU {}: Finding vanity address {}", cpu_num, address.address.to_string());
-        spinner.set_message(&message)
-    }
-
-    spinner.finish_and_clear();
-    return address
-}
 
 fn main() {
     let started_at = Instant::now();
@@ -44,36 +27,58 @@ fn main() {
         )
         .get_matches();
 
-    let starts_with = String::from(matches.value_of("startswith").unwrap());
-    let (tx, rx) = mpsc::channel();
-    let has_finished = Arc::new(atomic::AtomicBool::new(false));
-    let address = Arc::new(Mutex::new(Address::new()));
+    let spinners = repeat_with(|| multi_progress_bar.add(ProgressBar::new_spinner()))
+        .take(cpus)
+        .collect::<Vec<_>>();
 
-    for cpu_num in 0..cpus {
-        let progress_bar = multi_progress_bar.add(ProgressBar::new_spinner());
-        let starts_with = starts_with.clone();
-        let should_stop = has_finished.clone();
-        let (address, tx) = (Arc::clone(&address), tx.clone());
+    let work_handle = thread::spawn(move || {
+        let secp = Secp256k1::new();
+        let starts_with = matches.value_of("startswith").unwrap();
 
-        thread::spawn(move || {
-            let found_address = calculate_address(&starts_with, &should_stop, cpu_num + 1, progress_bar);
-            should_stop.store(true, atomic::Ordering::Relaxed);
+        let report_progress = |addr: &Address| {
+            let cpu_idx = rayon::current_thread_index().unwrap();
+            let message = format!("CPU {}: Finding vanity address {}", cpu_idx + 1, addr.address);
+            spinners[cpu_idx].set_message(&message);
+        };
 
-            // We unwrap() the return value to assert that we are not expecting
-            // threads to ever fail while holding the lock.
-            let mut address = address.lock().unwrap();
-            *address = found_address;
-            tx.send(()).unwrap();
-        });
+        let address = rayon::iter::repeat(Address::new)
+            .map(|compute_addr| compute_addr(&secp))
+            .inspect(report_progress)
+            .find_any(|addr| addr.starts_with(starts_with))
+            .unwrap();
+
+        for spinner in spinners {
+            spinner.finish()
+        }
+
+        address
+    });
+
+    multi_progress_bar.join_and_clear().unwrap();
+    let address = work_handle.join().unwrap();
+
+    println!("Private key:  {}", address.private_key);
+    println!("Public key:   {}", address.public_key);
+    println!("Address:      {}", address.address);
+    println!("Time elapsed: {}", HumanDuration(started_at.elapsed()));
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate test;
+
+    use test::Bencher;
+    use super::*;
+
+    #[bench]
+    fn find_address_reusing_secp(bencher: &mut Bencher) {
+        let secp = Secp256k1::new();
+
+        bencher.iter(|| Address::new(&secp))
     }
 
-    multi_progress_bar.join().unwrap();
-    rx.recv().unwrap();
-
-    let unwraped_address = address.lock().unwrap();
-
-    println!("Private key:  {}", unwraped_address.private_key);
-    println!("Public key:   {}", unwraped_address.public_key);
-    println!("Address:      {}", unwraped_address.address);
-    println!("Time elapsed: {}", HumanDuration(started_at.elapsed()));
+    #[bench]
+    fn find_address_reinstantiating_secp(bencher: &mut Bencher) {
+        bencher.iter(|| Address::new(&Secp256k1::new()))
+    }
 }

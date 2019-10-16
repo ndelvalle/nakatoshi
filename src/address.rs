@@ -1,4 +1,4 @@
-use secp256k1::Secp256k1;
+use secp256k1::{Secp256k1, Signing};
 use secp256k1::rand::thread_rng;
 
 use bitcoin::network::constants::Network;
@@ -11,8 +11,7 @@ pub struct Address {
 }
 
 impl Address {
-    pub fn new() -> Address {
-        let secp = Secp256k1::new();
+    pub fn new(secp: &Secp256k1<impl Signing>) -> Address {
         let keypair = secp.generate_keypair(&mut thread_rng());
         let private_key = util::key::PrivateKey {
             compressed: true,
