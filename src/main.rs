@@ -1,11 +1,15 @@
+#![feature(test)]
+
 mod address;
 
 use std::time::Instant;
 use std::{thread, iter::repeat_with};
 
-use address::Address;
 use indicatif::{ MultiProgress, ProgressBar, HumanDuration };
 use rayon::iter::ParallelIterator;
+use secp256k1::Secp256k1;
+
+use address::Address;
 
 fn main() {
     let started_at = Instant::now();
@@ -28,6 +32,7 @@ fn main() {
         .collect::<Vec<_>>();
 
     let work_handle = thread::spawn(move || {
+        let secp = Secp256k1::new();
         let starts_with = matches.value_of("startswith").unwrap();
 
         let report_progress = |addr: &Address| {
@@ -37,7 +42,7 @@ fn main() {
         };
 
         let address = rayon::iter::repeat(Address::new)
-            .map(|compute_addr| compute_addr())
+            .map(|compute_addr| compute_addr(&secp))
             .inspect(report_progress)
             .find_any(|addr| addr.starts_with(starts_with))
             .unwrap();
@@ -56,4 +61,24 @@ fn main() {
     println!("Public key:   {}", address.public_key);
     println!("Address:      {}", address.address);
     println!("Time elapsed: {}", HumanDuration(started_at.elapsed()));
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate test;
+
+    use test::Bencher;
+    use super::*;
+
+    #[bench]
+    fn find_address_reusing_secp(bencher: &mut Bencher) {
+        let secp = Secp256k1::new();
+
+        bencher.iter(|| Address::new(&secp))
+    }
+
+    #[bench]
+    fn find_address_reinstantiating_secp(bencher: &mut Bencher) {
+        bencher.iter(|| Address::new(&Secp256k1::new()))
+    }
 }
