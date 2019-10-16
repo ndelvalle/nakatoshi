@@ -2,8 +2,8 @@ mod address;
 
 use std::time::Instant;
 use std::sync::mpsc;
-use std::sync::{ Arc, Mutex, atomic };
 use std::{ thread };
+use std::sync::{ Arc, atomic };
 
 use address::Address;
 use indicatif::{ MultiProgress, ProgressBar, HumanDuration };
@@ -40,33 +40,26 @@ fn main() {
     let starts_with = String::from(matches.value_of("startswith").unwrap());
     let (tx, rx) = mpsc::channel();
     let has_finished = Arc::new(atomic::AtomicBool::new(false));
-    let address = Arc::new(Mutex::new(Address::new()));
 
     for cpu_num in 0..cpus {
         let progress_bar = multi_progress_bar.add(ProgressBar::new_spinner());
         let starts_with = starts_with.clone();
         let should_stop = has_finished.clone();
-        let (address, tx) = (Arc::clone(&address), tx.clone());
+        let tx = tx.clone();
 
         thread::spawn(move || {
             let found_address = calculate_address(&starts_with, &should_stop, cpu_num + 1, progress_bar);
             should_stop.store(true, atomic::Ordering::Relaxed);
 
-            // We unwrap() the return value to assert that we are not expecting
-            // threads to ever fail while holding the lock.
-            let mut address = address.lock().unwrap();
-            *address = found_address;
-            tx.send(()).unwrap();
+            tx.send(found_address).unwrap();
         });
     }
 
     multi_progress_bar.join().unwrap();
-    rx.recv().unwrap();
+    let address = rx.recv().unwrap();
 
-    let unwraped_address = address.lock().unwrap();
-
-    println!("Private key:  {}", unwraped_address.private_key);
-    println!("Public key:   {}", unwraped_address.public_key);
-    println!("Address:      {}", unwraped_address.address);
+    println!("Private key:  {}", address.private_key);
+    println!("Public key:   {}", address.public_key);
+    println!("Address:      {}", address.address);
     println!("Time elapsed: {}", HumanDuration(started_at.elapsed()));
 }
