@@ -1,8 +1,8 @@
-# rust-bitcoin-vanity
+# nakatoshi
 
-This tool creates a set of Bitcoin mainnet private, public key and vanity address (Essentially a personalized bitcoin address). This project is a proof of concept to play around with Rust lang.
+A [Bitcoin Vanity Address](https://github.com/bitcoinbook/bitcoinbook/blob/develop/ch04.asciidoc#vanity-addresses) generator.
 
-bitcoin-vanity accepts as input a "starts with" pattern to search for, and produces an address and private / public keys. The amount of time required to find a given pattern depends on how complex the pattern is, the speed of your computer, and whether you get lucky.
+nakatoshi accepts as input a "starts with" string to search for, and produces an address and private / public keys. The amount of time required to find a given pattern depends on how long the string is, the speed of your computer, and whether you get lucky.
 
 ## Development
 
@@ -13,14 +13,15 @@ cargo build
 # Run
 cargo run
 
-# Example using a start with pattern
-cargo run 1n
+# Example using a start with string
+cargo run 1Lov
 
-#Finished dev [unoptimized + debuginfo] target(s) in 0.05s
-#     Running `target/debug/bitcoin-vanity 1n`
-#Private key: KxXruWMF332bafiBSnXY48Yr3oUbgg4vZNQhoj1QQFPAQhmN9PBL
-#Public key:  02230073187af84cd6e4a85c4607cea6bae3c8fd8be50c4caae27b85829331d6a3
-#Address:     1nK5tgJC4EuJ96KGGo8pZdTGN54B2iAt5
+#    Finished dev [unoptimized + debuginfo] target(s) in 0.16s
+#     Running `target/debug/nakatoshi 1Ki`
+#Private key:  L5cwwXrcbLLibKmPgCewh2ueGCV6nV1zm1aUFRgW5q8mg2ufdEcc
+#Public key:   020e225a9d3c700a2544af1d9bd935aac380dee6c5716b19d5d26e6fe3d415310b
+#Address:      1KioF2fBWMmrHZy8ctGBQgmkjpcqTw4j3c
+#Time elapsed: 45.551637ms
 
 # Help
 cargo run -- -help
@@ -28,6 +29,7 @@ cargo run -- -help
 
 ## TODOs
 
+- [x] Create a release build
 - [ ] Create a release build
 - [ ] Improve API adding more options
 - [ ] Create tests

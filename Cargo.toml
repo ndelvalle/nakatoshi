@@ -1,8 +1,15 @@
 [package]
-name = "bitcoin-vanity"
+name = "nakatoshi"
 version = "0.1.0"
 authors = ["ndelvalle <nicolas.delvalle@gmail.com>"]
 edition = "2018"
+description = "Bitcoin vanity address generator"
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/ndelvalle/nakatoshi"
+repository = "https://github.com/ndelvalle/nakatoshi"
+keywords = ["bitcoin", "address", "vanity", "vanity-address"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 secp256k1 = "0.15.5"

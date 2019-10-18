@@ -5,7 +5,7 @@ mod address;
 use std::time::Instant;
 use std::{thread, iter::repeat_with};
 
-use indicatif::{ MultiProgress, ProgressBar, HumanDuration };
+use indicatif::{ MultiProgress, ProgressBar };
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
 
@@ -60,7 +60,7 @@ fn main() {
     println!("Private key:  {}", address.private_key);
     println!("Public key:   {}", address.public_key);
     println!("Address:      {}", address.address);
-    println!("Time elapsed: {}", HumanDuration(started_at.elapsed()));
+    println!("Time elapsed: {:?}", started_at.elapsed());
 }
 
 #[cfg(test)]
