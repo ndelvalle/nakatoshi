@@ -14,7 +14,7 @@ cargo build
 cargo run
 
 # Example using a start with string
-cargo run 1Lov
+cargo run 1Ki
 
 #    Finished dev [unoptimized + debuginfo] target(s) in 0.16s
 #     Running `target/debug/nakatoshi 1Ki`
@@ -29,7 +29,7 @@ cargo run -- -help
 
 ## TODOs
 
-- [x] Create a release build
+- [x] Support multithreading
 - [ ] Create a release build
 - [ ] Improve API adding more options
 - [ ] Create tests
