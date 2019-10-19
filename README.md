@@ -1,5 +1,7 @@
 # nakatoshi
 
+[![CircleCI](https://circleci.com/gh/ndelvalle/nakatoshi.svg?style=svg)](https://circleci.com/gh/ndelvalle/nakatoshi)
+
 A [Bitcoin Vanity Address](https://github.com/bitcoinbook/bitcoinbook/blob/develop/ch04.asciidoc#vanity-addresses) generator.
 
 nakatoshi accepts as input a "starts with" string to search for, and produces an address and private / public keys. The amount of time required to find a given pattern depends on how long the string is, the speed of your computer, and whether you get lucky.
