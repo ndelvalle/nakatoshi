@@ -3,9 +3,9 @@
 mod address;
 
 use std::time::Instant;
-use std::{thread, iter::repeat_with};
+use std::{iter::repeat_with, thread};
 
-use indicatif::{ MultiProgress, ProgressBar };
+use indicatif::{MultiProgress, ProgressBar};
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
 
@@ -19,11 +19,12 @@ fn main() {
         .version("0.1.0")
         .about("This tool creates a set of Bitcoin mainnet private, public key and vanity address")
         .author("ndelvalle <nicolas.delvalle@gmail.com>")
-        .arg(clap::Arg::with_name("startswith")
-            .required(true)
-            .takes_value(true)
-            .index(1)
-            .help("Address starts with")
+        .arg(
+            clap::Arg::with_name("startswith")
+                .required(true)
+                .takes_value(true)
+                .index(1)
+                .help("Address starts with"),
         )
         .get_matches();
 
@@ -37,7 +38,11 @@ fn main() {
 
         let report_progress = |addr: &Address| {
             let cpu_idx = rayon::current_thread_index().unwrap();
-            let message = format!("CPU {}: Finding vanity address {}", cpu_idx + 1, addr.address);
+            let message = format!(
+                "CPU {}: Finding vanity address {}",
+                cpu_idx + 1,
+                addr.address
+            );
             spinners[cpu_idx].set_message(&message);
         };
 
@@ -67,8 +72,8 @@ fn main() {
 mod tests {
     extern crate test;
 
-    use test::Bencher;
     use super::*;
+    use test::Bencher;
 
     #[bench]
     fn find_address_reusing_secp(bencher: &mut Bencher) {

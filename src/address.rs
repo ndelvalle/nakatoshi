@@ -1,5 +1,5 @@
-use secp256k1::{Secp256k1, Signing};
 use secp256k1::rand::thread_rng;
+use secp256k1::{Secp256k1, Signing};
 
 use bitcoin::network::constants::Network;
 use bitcoin::util;
@@ -21,10 +21,14 @@ impl Address {
         let public_key = util::key::PublicKey::from_private_key(&secp, &private_key);
         let address = util::address::Address::p2pkh(&public_key, Network::Bitcoin);
 
-        Address { private_key, public_key, address }
+        Address {
+            private_key,
+            public_key,
+            address,
+        }
     }
 
-    pub fn starts_with (&self, starts_with: &str) -> bool {
+    pub fn starts_with(&self, starts_with: &str) -> bool {
         self.address.to_string().starts_with(starts_with)
     }
 }
