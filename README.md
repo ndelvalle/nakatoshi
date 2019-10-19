@@ -1,4 +1,4 @@
-# nakatoshi :crab:
+# nakatoshi
 
 A [Bitcoin Vanity Address](https://github.com/bitcoinbook/bitcoinbook/blob/develop/ch04.asciidoc#vanity-addresses) generator.
 
