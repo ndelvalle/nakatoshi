@@ -16,13 +16,13 @@ $ cargo install nakatoshi
 
 ```shell
 # Build
-cargo build
+$ cargo build
 
 # Run
-cargo run
+$ cargo run
 
 # Example using a start with string
-cargo run 1Ki
+$ cargo run 1Ki
 
 #    Finished dev [unoptimized + debuginfo] target(s) in 0.16s
 #     Running `target/debug/nakatoshi 1Ki`
@@ -32,7 +32,7 @@ cargo run 1Ki
 #Time elapsed: 45.551637ms
 
 # Help
-cargo run -- -help
+$ cargo run -- -help
 ```
 
 ## TODOs
