@@ -6,6 +6,12 @@ A [Bitcoin Vanity Address](https://github.com/bitcoinbook/bitcoinbook/blob/devel
 
 nakatoshi accepts as input a "starts with" string to search for, and produces an address and private / public keys. The amount of time required to find a given pattern depends on how long the string is, the speed of your computer, and whether you get lucky.
 
+## Installation
+
+```shell
+$ cargo install nakatoshi
+```
+
 ## Development
 
 ```shell
