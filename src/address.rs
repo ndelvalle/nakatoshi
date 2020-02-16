@@ -1,8 +1,14 @@
-use secp256k1::rand::thread_rng;
-use secp256k1::{Secp256k1, Signing};
-
 use bitcoin::network::constants::Network;
 use bitcoin::util;
+use secp256k1::constants;
+use secp256k1::key::SecretKey;
+use secp256k1::{Secp256k1, Signing};
+
+fn get_random_buf() -> [u8; constants::SECRET_KEY_SIZE] {
+    let mut buf = [0u8; constants::SECRET_KEY_SIZE];
+    getrandom::getrandom(&mut buf).expect("Error creating random bytes");
+    buf
+}
 
 pub struct Address {
     pub private_key: util::key::PrivateKey,
@@ -12,18 +18,26 @@ pub struct Address {
 
 impl Address {
     pub fn new(secp: &Secp256k1<impl Signing>) -> Address {
-        let keypair = secp.generate_keypair(&mut thread_rng());
-        let private_key = util::key::PrivateKey {
+        let random_buf = get_random_buf();
+        let secret_key = match SecretKey::from_slice(&random_buf) {
+            Ok(sk) => sk,
+            Err(err) => panic!(
+                "Error creating secret key from random bytes {:?}",
+                err.to_string()
+            ),
+        };
+
+        let priv_key = util::key::PrivateKey {
             compressed: true,
             network: Network::Bitcoin,
-            key: keypair.0,
+            key: secret_key,
         };
-        let public_key = util::key::PublicKey::from_private_key(&secp, &private_key);
-        let address = util::address::Address::p2pkh(&public_key, Network::Bitcoin);
+        let pub_key = util::key::PublicKey::from_private_key(&secp, &priv_key);
+        let address = util::address::Address::p2pkh(&pub_key, Network::Bitcoin);
 
         Address {
-            private_key,
-            public_key,
+            private_key: priv_key,
+            public_key: pub_key,
             address,
         }
     }

@@ -37,8 +37,6 @@ $ cargo run -- -help
 
 ## TODOs
 
-- [x] Support multithreading
 - [ ] Create a release build
 - [ ] Improve API adding more options
-- [ ] Create tests
-- [x] Integrate with a CI
+- [ ] Add more tests

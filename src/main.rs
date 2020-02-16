@@ -1,20 +1,13 @@
-#![feature(test)]
-
 mod address;
 
-use std::time::Instant;
-use std::{iter::repeat_with, thread};
-
-use indicatif::{MultiProgress, ProgressBar};
+use address::Address;
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
-
-use address::Address;
+use serde_json::json;
+use spinners::{Spinner, Spinners};
+use std::time::Instant;
 
 fn main() {
-    let started_at = Instant::now();
-    let cpus = num_cpus::get();
-    let multi_progress_bar = MultiProgress::new();
     let matches = clap::App::new("Bitcoin vanity address generator")
         .version("0.1.0")
         .about("This tool creates a set of Bitcoin mainnet private, public key and vanity address")
@@ -28,62 +21,63 @@ fn main() {
         )
         .get_matches();
 
-    let spinners = repeat_with(|| multi_progress_bar.add(ProgressBar::new_spinner()))
-        .take(cpus)
-        .collect::<Vec<_>>();
+    let spinner = Spinner::new(Spinners::Dots9, "Calculating vanity address".into());
+    let started_at = Instant::now();
+    let secp = Secp256k1::new();
+    let starts_with = matches.value_of("startswith").unwrap();
 
-    let work_handle = thread::spawn(move || {
-        let secp = Secp256k1::new();
-        let starts_with = matches.value_of("startswith").unwrap();
+    let address = rayon::iter::repeat(Address::new)
+        .map(|compute_addr| compute_addr(&secp))
+        .find_any(|addr| addr.starts_with(starts_with))
+        .unwrap();
 
-        let report_progress = |addr: &Address| {
-            let cpu_idx = rayon::current_thread_index().unwrap();
-            let message = format!(
-                "CPU {}: Finding vanity address {}",
-                cpu_idx + 1,
-                addr.address
-            );
-            spinners[cpu_idx].set_message(&message);
-        };
+    spinner.stop();
 
-        let address = rayon::iter::repeat(Address::new)
-            .map(|compute_addr| compute_addr(&secp))
-            .inspect(report_progress)
-            .find_any(|addr| addr.starts_with(starts_with))
-            .unwrap();
-
-        for spinner in spinners {
-            spinner.finish()
-        }
-
-        address
+    let result = json!({
+        "private_key": address.private_key.to_string(),
+        "public_key": address.public_key.to_string(),
+        "address": address.address.to_string(),
+        "creation_time": started_at.elapsed()
     });
 
-    multi_progress_bar.join_and_clear().unwrap();
-    let address = work_handle.join().unwrap();
-
-    println!("Private key:  {}", address.private_key);
-    println!("Public key:   {}", address.public_key);
-    println!("Address:      {}", address.address);
-    println!("Time elapsed: {:?}", started_at.elapsed());
+    println!("{}", result.to_string());
 }
 
 #[cfg(test)]
 mod tests {
-    extern crate test;
+    use super::address::Address;
+    use secp256k1::Secp256k1;
 
-    use super::*;
-    use test::Bencher;
-
-    #[bench]
-    fn find_address_reusing_secp(bencher: &mut Bencher) {
+    #[test]
+    fn create_bitcoin_public_key() {
         let secp = Secp256k1::new();
+        let address = Address::new(&secp);
 
-        bencher.iter(|| Address::new(&secp))
+        let actual = address.public_key.to_string().len();
+        let expected = 66;
+
+        assert_eq!(actual, expected);
     }
 
-    #[bench]
-    fn find_address_reinstantiating_secp(bencher: &mut Bencher) {
-        bencher.iter(|| Address::new(&Secp256k1::new()))
+    #[test]
+    fn create_bitcoin_private_key() {
+        let secp = Secp256k1::new();
+        let address = Address::new(&secp);
+
+        let actual = address.private_key.to_string().len();
+        let expected = 52;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn create_bitcoin_address() {
+        let secp = Secp256k1::new();
+        let address = Address::new(&secp);
+
+        let actual = address.address.to_string().len();
+        let expected = 34;
+
+        assert_eq!(actual, expected);
     }
 }
