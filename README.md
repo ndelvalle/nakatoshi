@@ -1,6 +1,6 @@
 # nakatoshi
 
-[![CircleCI](https://circleci.com/gh/ndelvalle/nakatoshi.svg?style=svg)](https://circleci.com/gh/ndelvalle/nakatoshi)
+![](https://github.com/ndelvalle/nakatoshi/workflows/Rust/badge.svg)
 
 A [Bitcoin Vanity Address](https://github.com/bitcoinbook/bitcoinbook/blob/develop/ch04.asciidoc#vanity-addresses) generator.
 
