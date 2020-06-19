@@ -53,7 +53,7 @@ impl Address {
         }
     }
 
-    pub fn starts_with_any(&self, addresses: &Vec<String>, case_sensitive: bool) -> bool {
+    pub fn starts_with_any(&self, addresses: &[String], case_sensitive: bool) -> bool {
         for address in addresses.iter() {
             if self.starts_with(address, case_sensitive) {
                 return true;

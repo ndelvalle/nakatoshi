@@ -1,13 +1,13 @@
 mod address;
 
-use std::fs::File;
-use std::io::{self, BufRead};
-use std::path::Path;
 use address::Address;
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
 use serde_json::json;
 use spinners::{Spinner, Spinners};
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::path::Path;
 use std::time::Instant;
 
 fn main() {
@@ -72,7 +72,10 @@ fn main() {
     println!("{}", result.to_string());
 }
 
-fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>> where P: AsRef<Path> {
+fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
+where
+    P: AsRef<Path>,
+{
     let file = File::open(filename)?;
     Ok(io::BufReader::new(file).lines())
 }
