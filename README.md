@@ -12,6 +12,37 @@ nakatoshi accepts as input a "starts with" string to search for, and produces an
 $ cargo install nakatoshi
 ```
 
+## Usage
+
+#### Generate a vanity address (case sensitive)
+```shell
+nakatoshi 1ki
+```
+
+#### Generate a vanity address (case insensitive)
+
+(might be a bit faster since matching is less strict)
+```shell
+nakatoshi 1ki -i
+```
+
+#### Use a file with multiple possible matches
+A file with 1 pattern per newline can be used to search for vanity addresses.
+When for example you have a file called `input.txt` it would look like this:
+```shell
+nakatoshi -f input.txt
+```
+And running everything case insensitive would be:
+```shell
+nakatoshi -f input.txt -i
+```
+The contents of the file would look like:
+```
+1git
+1hub
+1etc
+```
+
 ## Development
 
 ```shell
@@ -34,6 +65,10 @@ $ cargo run 1Ki
 # Help
 $ cargo run -- -help
 ```
+Note: `Cargo run` creates an unoptimized executable with debug info.
+When testing the speed/throughput of the application, be sure to `cargo run --release` to get the best performance from the application.
+
+Adding parameters in this context looks like `cargo run --release -- -f somefile.txt -i`
 
 ## TODOs
 
@@ -42,6 +77,6 @@ $ cargo run -- -help
 - [ ] Add more tests
 - [X] Add commandline argument for case-insensitive option (`-i`)
 - [ ] Add commandline argument to keep going after finding an address (`-k`)
-- [ ] Add commandline argument for saving results to file (`-o results.txt`)
-- [ ] Add commandline argument for using a file as input (`-f addresses.txt`)
+- [ ] Add commandline argument for saving results to file (`-o output.txt`)
+- [X] Add commandline argument for using a file as input (`-f input.txt`)
 - [ ] Add commandline argument for Bech32 `bc1q` addresses (`-b`)

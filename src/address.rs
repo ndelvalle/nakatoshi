@@ -52,4 +52,13 @@ impl Address {
                 .starts_with(starts_with)
         }
     }
+
+    pub fn starts_with_any(&self, addresses: &[String], case_sensitive: bool) -> bool {
+        for address in addresses.iter() {
+            if self.starts_with(address, case_sensitive) {
+                return true;
+            }
+        }
+        false
+    }
 }
