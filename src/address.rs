@@ -10,6 +10,38 @@ fn get_random_buf() -> [u8; constants::SECRET_KEY_SIZE] {
     buf
 }
 
+pub struct Couple {
+    pub uncompressed: Address,
+    pub compressed: Address,
+}
+
+impl Couple {
+    pub fn new(secp: &Secp256k1<impl Signing>) -> Couple {
+        let random_buf = get_random_buf();
+        let uncompressed = Address::new(secp, &random_buf, false);
+        let compressed = Address::new(secp, &random_buf, true);
+
+        Couple {
+            uncompressed,
+            compressed,
+        }
+    }
+
+    pub fn starts_with_any(&self, addresses: &[String], case_sensitive: bool) -> bool {
+        for address in addresses.iter() {
+            if self.starts_with(address, case_sensitive) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn starts_with(&self, starts_with: &str, case_sensitive: bool) -> bool {
+        self.uncompressed.starts_with(starts_with, case_sensitive)
+            || self.compressed.starts_with(starts_with, case_sensitive)
+    }
+}
+
 pub struct Address {
     pub private_key: util::key::PrivateKey,
     pub public_key: util::key::PublicKey,
@@ -17,9 +49,8 @@ pub struct Address {
 }
 
 impl Address {
-    pub fn new(secp: &Secp256k1<impl Signing>) -> Address {
-        let random_buf = get_random_buf();
-        let secret_key = match SecretKey::from_slice(&random_buf) {
+    pub fn new(secp: &Secp256k1<impl Signing>, data: &[u8], compressed: bool) -> Address {
+        let key = match SecretKey::from_slice(data) {
             Ok(sk) => sk,
             Err(err) => panic!(
                 "Error creating secret key from random bytes {:?}",
@@ -27,17 +58,18 @@ impl Address {
             ),
         };
 
-        let priv_key = util::key::PrivateKey {
-            compressed: true,
+        let private_key = util::key::PrivateKey {
+            compressed,
             network: Network::Bitcoin,
-            key: secret_key,
+            key,
         };
-        let pub_key = util::key::PublicKey::from_private_key(&secp, &priv_key);
-        let address = util::address::Address::p2pkh(&pub_key, Network::Bitcoin);
+
+        let public_key = util::key::PublicKey::from_private_key(&secp, &private_key);
+        let address = util::address::Address::p2pkh(&public_key, Network::Bitcoin);
 
         Address {
-            private_key: priv_key,
-            public_key: pub_key,
+            private_key,
+            public_key,
             address,
         }
     }
@@ -51,14 +83,5 @@ impl Address {
                 .to_lowercase()
                 .starts_with(starts_with)
         }
-    }
-
-    pub fn starts_with_any(&self, addresses: &[String], case_sensitive: bool) -> bool {
-        for address in addresses.iter() {
-            if self.starts_with(address, case_sensitive) {
-                return true;
-            }
-        }
-        false
     }
 }

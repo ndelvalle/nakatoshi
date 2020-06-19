@@ -1,6 +1,6 @@
 mod address;
 
-use address::Address;
+use address::Couple;
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
 use serde_json::json;
@@ -39,13 +39,13 @@ fn main() {
     let started_at = Instant::now();
     let secp = Secp256k1::new();
     let case_sensitive: bool = !matches.is_present("case_sensitive");
-    let address: Address = if matches.is_present("file_input") {
+    let couple: Couple = if matches.is_present("file_input") {
         let file_name: &str = matches.value_of("file_input").unwrap();
         let addresses = load_file_into_vector(file_name);
 
-        rayon::iter::repeat(Address::new)
+        rayon::iter::repeat(Couple::new)
             .map(|compute_addr| compute_addr(&secp))
-            .find_any(|addr| addr.starts_with_any(&addresses, case_sensitive))
+            .find_any(|couple| couple.starts_with_any(&addresses, case_sensitive))
             .unwrap()
     } else {
         let starts_with: String = if case_sensitive {
@@ -54,18 +54,25 @@ fn main() {
             matches.value_of("startswith").unwrap().to_lowercase()
         };
 
-        rayon::iter::repeat(Address::new)
+        rayon::iter::repeat(Couple::new)
             .map(|compute_addr| compute_addr(&secp))
-            .find_any(|addr| addr.starts_with(&starts_with, case_sensitive))
+            .find_any(|couple| couple.starts_with(&starts_with, case_sensitive))
             .unwrap()
     };
 
     spinner.stop();
 
     let result = json!({
-        "private_key": address.private_key.to_string(),
-        "public_key": address.public_key.to_string(),
-        "address": address.address.to_string(),
+        "uncompressed": {
+            "private_key": couple.uncompressed.private_key.to_string(),
+            "public_key": couple.uncompressed.public_key.to_string(),
+            "address": couple.uncompressed.address.to_string()
+        },
+        "compressed": {
+            "private_key": couple.compressed.private_key.to_string(),
+            "public_key": couple.compressed.public_key.to_string(),
+            "address": couple.compressed.address.to_string()
+        },
         "creation_time": started_at.elapsed()
     });
 
@@ -95,15 +102,15 @@ fn load_file_into_vector(file_name: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::address::Address;
+    use crate::address::Couple;
     use secp256k1::Secp256k1;
 
     #[test]
     fn create_bitcoin_public_key() {
         let secp = Secp256k1::new();
-        let address = Address::new(&secp);
+        let couple = Couple::new(&secp);
 
-        let actual = address.public_key.to_string().len();
+        let actual = couple.compressed.public_key.to_string().len();
         let expected = 66;
 
         assert_eq!(actual, expected);
@@ -112,9 +119,9 @@ mod tests {
     #[test]
     fn create_bitcoin_private_key() {
         let secp = Secp256k1::new();
-        let address = Address::new(&secp);
+        let couple = Couple::new(&secp);
 
-        let actual = address.private_key.to_string().len();
+        let actual = couple.compressed.private_key.to_string().len();
         let expected = 52;
 
         assert_eq!(actual, expected);
@@ -123,9 +130,9 @@ mod tests {
     #[test]
     fn create_bitcoin_address() {
         let secp = Secp256k1::new();
-        let address = Address::new(&secp);
+        let couple = Couple::new(&secp);
 
-        let actual = address.address.to_string().len();
+        let actual = couple.compressed.address.to_string().len();
         let expected = 34;
 
         assert_eq!(actual, expected);
