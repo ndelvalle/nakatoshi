@@ -102,8 +102,8 @@ fn load_file_into_vector(file_name: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use secp256k1::Secp256k1;
     use crate::address::Couple;
+    use secp256k1::Secp256k1;
 
     #[test]
     fn create_bitcoin_public_key() {
