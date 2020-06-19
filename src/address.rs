@@ -42,7 +42,14 @@ impl Address {
         }
     }
 
-    pub fn starts_with(&self, starts_with: &str) -> bool {
-        self.address.to_string().starts_with(starts_with)
+    pub fn starts_with(&self, starts_with: &str, case_sensitive: bool) -> bool {
+        if case_sensitive {
+            self.address.to_string().starts_with(starts_with)
+        } else {
+            self.address
+                .to_string()
+                .to_lowercase()
+                .starts_with(starts_with)
+        }
     }
 }

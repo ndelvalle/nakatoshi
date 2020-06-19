@@ -12,23 +12,33 @@ fn main() {
         .version("0.1.0")
         .about("This tool creates a set of Bitcoin mainnet private, public key and vanity address")
         .author("ndelvalle <nicolas.delvalle@gmail.com>")
-        .arg(
+        .args(&[
             clap::Arg::with_name("startswith")
                 .required(true)
                 .takes_value(true)
                 .index(1)
                 .help("Address starts with"),
-        )
+            clap::Arg::with_name("case_sensitive")
+                .short("i")
+                .long("sensitive")
+                .takes_value(false)
+                .help("case insensitive searches for matches"),
+        ])
         .get_matches();
 
     let spinner = Spinner::new(Spinners::Dots9, "Calculating vanity address".into());
     let started_at = Instant::now();
     let secp = Secp256k1::new();
-    let starts_with = matches.value_of("startswith").unwrap();
+    let case_sensitive: bool = !matches.is_present("case_sensitive");
+    let starts_with: String = if case_sensitive {
+        matches.value_of("startswith").unwrap().to_string()
+    } else {
+        matches.value_of("startswith").unwrap().to_lowercase()
+    };
 
     let address = rayon::iter::repeat(Address::new)
         .map(|compute_addr| compute_addr(&secp))
-        .find_any(|addr| addr.starts_with(starts_with))
+        .find_any(|addr| addr.starts_with(&starts_with, case_sensitive))
         .unwrap();
 
     spinner.stop();

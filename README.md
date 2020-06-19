@@ -40,3 +40,8 @@ $ cargo run -- -help
 - [ ] Create a release build
 - [ ] Improve API adding more options
 - [ ] Add more tests
+- [X] Add commandline argument for case-insensitive option (`-i`)
+- [ ] Add commandline argument to keep going after finding an address (`-k`)
+- [ ] Add commandline argument for saving results to file (`-o results.txt`)
+- [ ] Add commandline argument for using a file as input (`-f addresses.txt`)
+- [ ] Add commandline argument for Bech32 `bc1q` addresses (`-b`)
