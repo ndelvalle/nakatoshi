@@ -41,11 +41,11 @@ jobs:
           key: ${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --all --release --locked && strip target/release/nakatoshi && mv target/release/nakatoshi target/release/${{ matrix.artifact_name }}
+        run: cargo build --all --release --locked && strip target/release/nakatoshi && mv target/release/nakatoshi target/release/${{ matrix.asset_name }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: target/release/${{ matrix.artifact_name }}
+          files: target/release/${{ matrix.asset_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
