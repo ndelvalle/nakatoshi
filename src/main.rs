@@ -56,7 +56,7 @@ fn main() {
 
         rayon::iter::repeat(Couple::new)
             .map(|compute_addr| compute_addr(&secp))
-            .find_any(|couple| couple.starts_with_any(&starts_with, case_sensitive))
+            .find_any(|couple| couple.starts_with(&starts_with, case_sensitive))
             .unwrap()
     };
 

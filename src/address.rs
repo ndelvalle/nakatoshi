@@ -27,7 +27,16 @@ impl Couple {
         }
     }
 
-    pub fn starts_with_any(&self, starts_with: &str, case_sensitive: bool) -> bool {
+    pub fn starts_with_any(&self, addresses: &[String], case_sensitive: bool) -> bool {
+        for address in addresses.iter() {
+            if self.starts_with(address, case_sensitive) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn starts_with(&self, starts_with: &str, case_sensitive: bool) -> bool {
         self.uncompressed.starts_with(starts_with, case_sensitive)
             || self.compressed.starts_with(starts_with, case_sensitive)
     }
@@ -74,14 +83,5 @@ impl Address {
                 .to_lowercase()
                 .starts_with(starts_with)
         }
-    }
-
-    pub fn starts_with_any(&self, addresses: &[String], case_sensitive: bool) -> bool {
-        for address in addresses.iter() {
-            if self.starts_with(address, case_sensitive) {
-                return true;
-            }
-        }
-        false
     }
 }
