@@ -46,7 +46,10 @@ impl Address {
         if case_sensitive {
             self.address.to_string().starts_with(starts_with)
         } else {
-            self.address.to_string().to_lowercase().starts_with(starts_with)
+            self.address
+                .to_string()
+                .to_lowercase()
+                .starts_with(starts_with)
         }
     }
 }

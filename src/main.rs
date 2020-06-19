@@ -12,20 +12,18 @@ fn main() {
         .version("0.1.0")
         .about("This tool creates a set of Bitcoin mainnet private, public key and vanity address")
         .author("ndelvalle <nicolas.delvalle@gmail.com>")
-        .args(
-            &[
-                clap::Arg::with_name("startswith")
-                    .required(true)
-                    .takes_value(true)
-                    .index(1)
-                    .help("Address starts with"),
-                clap::Arg::with_name("case_sensitive")
-                    .short("i")
-                    .long("sensitive")
-                    .takes_value(false)
-                    .help("case insensitive searches for matches")
-            ]
-        )
+        .args(&[
+            clap::Arg::with_name("startswith")
+                .required(true)
+                .takes_value(true)
+                .index(1)
+                .help("Address starts with"),
+            clap::Arg::with_name("case_sensitive")
+                .short("i")
+                .long("sensitive")
+                .takes_value(false)
+                .help("case insensitive searches for matches"),
+        ])
         .get_matches();
 
     let spinner = Spinner::new(Spinners::Dots9, "Calculating vanity address".into());
@@ -34,7 +32,7 @@ fn main() {
     let case_sensitive: bool = !matches.is_present("case_sensitive");
     let starts_with: String = match case_sensitive {
         true => matches.value_of("startswith").unwrap().to_string(),
-        false => matches.value_of("startswith").unwrap().to_lowercase()
+        false => matches.value_of("startswith").unwrap().to_lowercase(),
     };
 
     let address = rayon::iter::repeat(Address::new)
