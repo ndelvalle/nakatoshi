@@ -30,9 +30,10 @@ fn main() {
     let started_at = Instant::now();
     let secp = Secp256k1::new();
     let case_sensitive: bool = !matches.is_present("case_sensitive");
-    let starts_with: String = match case_sensitive {
-        true => matches.value_of("startswith").unwrap().to_string(),
-        false => matches.value_of("startswith").unwrap().to_lowercase(),
+    let starts_with: String = if case_sensitive {
+        matches.value_of("startswith").unwrap().to_string()
+    } else {
+        matches.value_of("startswith").unwrap().to_lowercase()
     };
 
     let address = rayon::iter::repeat(Address::new)
