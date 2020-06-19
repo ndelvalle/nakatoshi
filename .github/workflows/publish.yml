@@ -3,11 +3,11 @@ name: Publish
 on:
   push:
     tags:
-      - '*'
+      - 'v*.*.*'
 
 jobs:
   publish:
-    name: Publish for ${{ matrix.os }}
+    name: Publish ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -23,16 +23,29 @@ jobs:
             asset_name: nakatoshi-macos-amd64
 
     steps:
-      - uses: hecrj/setup-rust-action@v1
+      - name: Checkout sources
+        uses: actions/checkout@v1
+      
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          rust-version: stable
-      - uses: actions/checkout@v1
+          toolchain: stable
+          override: true
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Build
-        run: cargo build --release --locked
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v1-release
+        run: cargo build --all --release --locked && strip target/release/${{ matrix.artifact_name }} && mv target/release/nakatoshi target/release/${{ matrix.artifact_name }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          tag: ${{ github.ref }}
+          files: target/release/${{ matrix.artifact_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
