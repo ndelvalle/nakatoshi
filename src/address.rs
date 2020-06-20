@@ -49,7 +49,12 @@ pub struct Address {
 }
 
 impl Address {
-    pub fn new(secp: &Secp256k1<impl Signing>, data: &[u8], compressed: bool, bech: bool) -> Address {
+    pub fn new(
+        secp: &Secp256k1<impl Signing>,
+        data: &[u8],
+        compressed: bool,
+        bech: bool,
+    ) -> Address {
         let key = match SecretKey::from_slice(data) {
             Ok(sk) => sk,
             Err(err) => panic!(
