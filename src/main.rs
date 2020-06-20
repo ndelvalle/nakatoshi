@@ -34,8 +34,10 @@ fn main() {
                 .help("case insensitive searches for matches"),
             clap::Arg::with_name("bech32")
                 .required(false)
+                .conflicts_with("case_sensitive")
                 .short("b")
                 .long("bech")
+                .takes_value(false)
                 .help("Search for Bech32 addresses starting with bc1q"),
         ])
         .get_matches();
@@ -44,7 +46,7 @@ fn main() {
     let started_at = Instant::now();
     let secp = Secp256k1::new();
     let case_sensitive: bool = !matches.is_present("case_sensitive");
-    let bech: bool = matches.is_present("bech");
+    let bech: bool = matches.is_present("bech32");
 
     let couple: Couple = if matches.is_present("file_input") {
         let file_name: &str = matches.value_of("file_input").unwrap();
