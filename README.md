@@ -21,7 +21,7 @@ nakatoshi 1ki
 
 #### Generate a vanity address (case insensitive)
 
-(might be a bit faster since matching is less strict)
+(Note: might be a bit faster since matching is less strict)
 ```shell
 nakatoshi 1ki -i
 ```
@@ -42,6 +42,12 @@ The contents of the file would look like:
 1hub
 1etc
 ```
+
+#### Search for a Bech32 address
+```shell
+nakatoshi -b bc1qki
+```
+(Note: There is no need to search with the case-insensitive flag because `bc1q` addresses are lowercase.)
 
 ## Development
 
@@ -79,4 +85,4 @@ Adding parameters in this context looks like `cargo run --release -- -f somefile
 - [ ] Add commandline argument to keep going after finding an address (`-k`)
 - [ ] Add commandline argument for saving results to file (`-o output.txt`)
 - [X] Add commandline argument for using a file as input (`-f input.txt`)
-- [ ] Add commandline argument for Bech32 `bc1q` addresses (`-b`)
+- [X] Add commandline argument for Bech32 `bc1q` addresses (`-b`)
