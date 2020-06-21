@@ -16,10 +16,10 @@ pub struct Couple {
 }
 
 impl Couple {
-    pub fn new(secp: &Secp256k1<impl Signing>) -> Couple {
+    pub fn new(secp: &Secp256k1<impl Signing>, bech: bool) -> Couple {
         let random_buf = get_random_buf();
-        let uncompressed = Address::new(secp, &random_buf, false);
-        let compressed = Address::new(secp, &random_buf, true);
+        let uncompressed = Address::new(secp, &random_buf, false, bech);
+        let compressed = Address::new(secp, &random_buf, true, bech);
 
         Couple {
             uncompressed,
@@ -49,7 +49,12 @@ pub struct Address {
 }
 
 impl Address {
-    pub fn new(secp: &Secp256k1<impl Signing>, data: &[u8], compressed: bool) -> Address {
+    pub fn new(
+        secp: &Secp256k1<impl Signing>,
+        data: &[u8],
+        compressed: bool,
+        bech: bool,
+    ) -> Address {
         let key = match SecretKey::from_slice(data) {
             Ok(sk) => sk,
             Err(err) => panic!(
@@ -65,7 +70,11 @@ impl Address {
         };
 
         let public_key = util::key::PublicKey::from_private_key(&secp, &private_key);
-        let address = util::address::Address::p2pkh(&public_key, Network::Bitcoin);
+        let address: util::address::Address = if bech {
+            util::address::Address::p2wpkh(&public_key, Network::Bitcoin)
+        } else {
+            util::address::Address::p2pkh(&public_key, Network::Bitcoin)
+        };
 
         Address {
             private_key,

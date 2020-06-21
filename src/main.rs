@@ -32,6 +32,13 @@ fn main() {
                 .long("sensitive")
                 .takes_value(false)
                 .help("case insensitive searches for matches"),
+            clap::Arg::with_name("bech32")
+                .required(false)
+                .conflicts_with("case_sensitive")
+                .short("b")
+                .long("bech")
+                .takes_value(false)
+                .help("Search for Bech32 addresses starting with bc1q"),
         ])
         .get_matches();
 
@@ -39,12 +46,14 @@ fn main() {
     let started_at = Instant::now();
     let secp = Secp256k1::new();
     let case_sensitive: bool = !matches.is_present("case_sensitive");
+    let bech: bool = matches.is_present("bech32");
+
     let couple: Couple = if matches.is_present("file_input") {
         let file_name: &str = matches.value_of("file_input").unwrap();
         let addresses = load_file_into_vector(file_name);
 
         rayon::iter::repeat(Couple::new)
-            .map(|compute_addr| compute_addr(&secp))
+            .map(|couple_new| couple_new(&secp, bech))
             .find_any(|couple| couple.starts_with_any(&addresses, case_sensitive))
             .unwrap()
     } else {
@@ -55,7 +64,7 @@ fn main() {
         };
 
         rayon::iter::repeat(Couple::new)
-            .map(|compute_addr| compute_addr(&secp))
+            .map(|couple_new| couple_new(&secp, bech))
             .find_any(|couple| couple.starts_with(&starts_with, case_sensitive))
             .unwrap()
     };
@@ -108,7 +117,7 @@ mod tests {
     #[test]
     fn create_bitcoin_public_key() {
         let secp = Secp256k1::new();
-        let couple = Couple::new(&secp);
+        let couple = Couple::new(&secp, false);
 
         let actual = couple.compressed.public_key.to_string().len();
         let expected = 66;
@@ -119,7 +128,7 @@ mod tests {
     #[test]
     fn create_bitcoin_private_key() {
         let secp = Secp256k1::new();
-        let couple = Couple::new(&secp);
+        let couple = Couple::new(&secp, false);
 
         let actual = couple.compressed.private_key.to_string().len();
         let expected = 52;
@@ -130,11 +139,20 @@ mod tests {
     #[test]
     fn create_bitcoin_address() {
         let secp = Secp256k1::new();
-        let couple = Couple::new(&secp);
+        let couple = Couple::new(&secp, false);
 
         let actual = couple.compressed.address.to_string().len();
         let expected = 34;
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn create_bech32_address() {
+        let secp = Secp256k1::new();
+        let couple = Couple::new(&secp, true);
+
+        assert!(couple.uncompressed.address.to_string().starts_with("bc1q"));
+        assert!(couple.compressed.address.to_string().starts_with("bc1q"));
     }
 }
