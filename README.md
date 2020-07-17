@@ -1,6 +1,6 @@
 # nakatoshi
 
-![](https://github.com/ndelvalle/nakatoshi/workflows/Rust/badge.svg)
+[![](https://github.com/ndelvalle/nakatoshi/workflows/Rust/badge.svg)](https://github.com/ndelvalle/nakatoshi/actions?query=workflow%3ARust)
 
 A [Bitcoin Vanity Address](https://github.com/bitcoinbook/bitcoinbook/blob/develop/ch04.asciidoc#vanity-addresses) generator.
 
