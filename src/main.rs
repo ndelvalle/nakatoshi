@@ -8,63 +8,43 @@ use spinners::{Spinner, Spinners};
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
+use std::process;
 use std::time::Instant;
 
+mod cli;
+
 fn main() {
-    let matches = clap::App::new("Bitcoin vanity address generator")
-        .version("0.1.0")
-        .about("This tool creates a set of Bitcoin mainnet private, public key and vanity address")
-        .author("ndelvalle <nicolas.delvalle@gmail.com>")
-        .args(&[
-            clap::Arg::with_name("file_input")
-                .required(false)
-                .short("f")
-                .long("file")
-                .takes_value(true)
-                .help("File with addresses"),
-            clap::Arg::with_name("startswith")
-                .required(false)
-                .takes_value(true)
-                .help("Address starts with"),
-            clap::Arg::with_name("case_sensitive")
-                .required(false)
-                .short("i")
-                .long("sensitive")
-                .takes_value(false)
-                .help("case insensitive searches for matches"),
-            clap::Arg::with_name("bech32")
-                .required(false)
-                .conflicts_with("case_sensitive")
-                .short("b")
-                .long("bech")
-                .takes_value(false)
-                .help("Search for Bech32 addresses starting with bc1q"),
-        ])
-        .get_matches();
+    let matches = cli::ask().get_matches();
+
+    if !matches.is_present("starts-with") && !matches.is_present("file-input") {
+        eprintln!("Start with prefix must be provided use --starts-with or --file-input");
+        process::exit(1);
+    }
 
     let spinner = Spinner::new(Spinners::Dots12, "Calculating vanity address".into());
     let started_at = Instant::now();
     let secp = Secp256k1::new();
-    let case_sensitive: bool = !matches.is_present("case_sensitive");
-    let bech: bool = matches.is_present("bech32");
 
-    let couple: Couple = if matches.is_present("file_input") {
-        let file_name: &str = matches.value_of("file_input").unwrap();
+    let case_sensitive: bool = matches.is_present("case-sensitive");
+    let is_bech32: bool = matches.is_present("bech32");
+
+    let couple: Couple = if matches.is_present("file-input") {
+        let file_name: &str = matches.value_of("file-input").unwrap();
         let addresses = load_file_into_vector(file_name);
 
         rayon::iter::repeat(Couple::new)
-            .map(|couple_new| couple_new(&secp, bech))
+            .map(|couple_new| couple_new(&secp, is_bech32))
             .find_any(|couple| couple.starts_with_any(&addresses, case_sensitive))
             .unwrap()
     } else {
         let starts_with: String = if case_sensitive {
-            matches.value_of("startswith").unwrap().to_string()
+            matches.value_of("starts-with").unwrap().to_string()
         } else {
-            matches.value_of("startswith").unwrap().to_lowercase()
+            matches.value_of("starts-with").unwrap().to_lowercase()
         };
 
         rayon::iter::repeat(Couple::new)
-            .map(|couple_new| couple_new(&secp, bech))
+            .map(|couple_new| couple_new(&secp, is_bech32))
             .find_any(|couple| couple.starts_with(&starts_with, case_sensitive))
             .unwrap()
     };
