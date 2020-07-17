@@ -15,9 +15,6 @@ jobs:
           - os: ubuntu-latest
             artifact_name: nakatoshi
             asset_name: nakatoshi-linux-amd64
-          - os: windows-latest
-            artifact_name: nakatoshi.exe
-            asset_name: nakatoshi-windows-amd64
           - os: macos-latest
             artifact_name: nakatoshi
             asset_name: nakatoshi-macos-amd64
@@ -25,7 +22,7 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v1
-      
+
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -41,7 +38,10 @@ jobs:
           key: ${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --all --release --locked && strip target/release/nakatoshi && mv target/release/nakatoshi target/release/${{ matrix.asset_name }}
+        run: |
+          cargo build --all --release --locked
+          strip target/release/nakatoshi
+          mv target/release/nakatoshi target/release/${{ matrix.asset_name }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -49,3 +49,9 @@ jobs:
           files: target/release/${{ matrix.asset_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish package to rust package registry
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cargo package
+          cargo publish --token ${{ secrets.CARGO_TOKEN }}
