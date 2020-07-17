@@ -31,4 +31,14 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
                 .takes_value(false)
                 .help("Use Bech32 addresses starting with bc1q (Lowercase address)"),
         )
+        .arg(
+            clap::Arg::with_name("threads")
+                .short("t")
+                .long("threads")
+                .takes_value(false)
+                // This is not the actual default value, it is here to pretty display
+                // the information.
+                .default_value("The number of CPUs available on the current system")
+                .help("Number of threads to be used"),
+        )
 }

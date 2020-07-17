@@ -6,13 +6,51 @@ A [Bitcoin Vanity Address](https://github.com/bitcoinbook/bitcoinbook/blob/devel
 
 nakatoshi accepts as input a "starts with" string to search for, and produces an address and private / public keys. The amount of time required to find a given pattern depends on how long the string is, the speed of your computer, and whether you get lucky.
 
-## Installation
+## Install
 
-```shell
+
+### Cargo
+
+```
 $ cargo install nakatoshi
 ```
 
-## Usage
+### Manually
+
+Download the latest [released binary](https://github.com/ndelvalle/nakatoshi/releases)
+and add executable permissions:
+
+```bash
+# Linux example:
+$ wget -O nakatoshi "https://github.com/ndelvalle/nakatoshi/releases/download/v0.1.1/nakatoshi-linux-amd64"
+$ chmod +x nakatoshi
+```
+
+## CLI information
+
+
+```
+nakatoshi 0.1.0
+Bitcoin vanity address generator
+
+USAGE:
+    nakatoshi [FLAGS] [OPTIONS]
+
+FLAGS:
+    -b, --bech32            Use Bech32 addresses starting with bc1q (Lowercase address)
+    -c, --case-sensitive    Use case sensitive to match addresses
+    -h, --help              Prints help information
+    -V, --version           Prints version information
+
+OPTIONS:
+    -f, --file <file>                  File with starts-with prefixes to generate addresses
+    -s, --starts-with <starts-with>    Start with prefix used to match addresses
+    -t, --threads <threads>            Number of threads to be used [default: The number of CPUs available on the
+                                       current system]
+```
+
+
+## Use examples:
 
 #### Generate a vanity address (case sensitive)
 ```shell
@@ -55,34 +93,11 @@ nakatoshi -b bc1qki
 # Build
 $ cargo build
 
-# Run
-$ cargo run
-
-# Example using a start with string
-$ cargo run 1Ki
-
-#    Finished dev [unoptimized + debuginfo] target(s) in 0.16s
-#     Running `target/debug/nakatoshi 1Ki`
-#Private key:  L5cwwXrcbLLibKmPgCewh2ueGCV6nV1zm1aUFRgW5q8mg2ufdEcc
-#Public key:   020e225a9d3c700a2544af1d9bd935aac380dee6c5716b19d5d26e6fe3d415310b
-#Address:      1KioF2fBWMmrHZy8ctGBQgmkjpcqTw4j3c
-#Time elapsed: 45.551637ms
-
 # Help
 $ cargo run -- -help
 ```
+
 Note: `Cargo run` creates an unoptimized executable with debug info.
 When testing the speed/throughput of the application, be sure to `cargo run --release` to get the best performance from the application.
 
 Adding parameters in this context looks like `cargo run --release -- -f somefile.txt -i`
-
-## TODOs
-
-- [ ] Create a release build
-- [ ] Improve API adding more options
-- [ ] Add more tests
-- [X] Add commandline argument for case-insensitive option (`-i`)
-- [ ] Add commandline argument to keep going after finding an address (`-k`)
-- [ ] Add commandline argument for saving results to file (`-o output.txt`)
-- [X] Add commandline argument for using a file as input (`-f input.txt`)
-- [X] Add commandline argument for Bech32 `bc1q` addresses (`-b`)

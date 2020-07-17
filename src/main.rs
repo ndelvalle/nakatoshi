@@ -28,18 +28,30 @@ fn main() {
     let is_case_sensitive: bool = matches.is_present("case-sensitive");
     let is_bech32: bool = matches.is_present("bech32");
 
-    let couple: Couple = rayon::iter::repeat(Couple::new)
-        .map(|couple_new| couple_new(&secp, is_bech32))
-        .find_any(|couple| match matches.value_of("starts-with") {
-            Some(prefix) => couple.starts_with(&prefix, is_case_sensitive),
-            None => {
-                let file_name: &str = matches.value_of("file").unwrap();
-                let addresses = get_addresses_from_file(file_name);
+    let num_threads: usize = matches
+        .value_of("threads")
+        .and_then(|duration| duration.parse().ok())
+        .unwrap_or_else(num_cpus::get);
 
-                couple.starts_with_any(&addresses, is_case_sensitive)
-            }
-        })
-        .expect("Failed to find address match");
+    let rayon_pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .expect("Failed to create thread pool");
+
+    let couple: Couple = rayon_pool.install(|| {
+        rayon::iter::repeat(Couple::new)
+            .map(|couple_new| couple_new(&secp, is_bech32))
+            .find_any(|couple| match matches.value_of("starts-with") {
+                Some(prefix) => couple.starts_with(&prefix, is_case_sensitive),
+                None => {
+                    let file_name: &str = matches.value_of("file").unwrap();
+                    let addresses = get_addresses_from_file(file_name);
+
+                    couple.starts_with_any(&addresses, is_case_sensitive)
+                }
+            })
+            .expect("Failed to find address match")
+    });
 
     spinner.stop();
 
