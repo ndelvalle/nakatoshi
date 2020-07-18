@@ -6,7 +6,7 @@ use secp256k1::{Secp256k1, Signing};
 
 fn get_random_buf() -> [u8; constants::SECRET_KEY_SIZE] {
     let mut buf = [0u8; constants::SECRET_KEY_SIZE];
-    getrandom::getrandom(&mut buf).expect("Error creating random bytes");
+    getrandom::getrandom(&mut buf).expect("Failed to create random bytes");
     buf
 }
 
@@ -16,10 +16,10 @@ pub struct Couple {
 }
 
 impl Couple {
-    pub fn new(secp: &Secp256k1<impl Signing>, bech: bool) -> Couple {
+    pub fn new(secp: &Secp256k1<impl Signing>, is_bech32: bool) -> Couple {
         let random_buf = get_random_buf();
-        let uncompressed = Address::new(secp, &random_buf, false, bech);
-        let compressed = Address::new(secp, &random_buf, true, bech);
+        let uncompressed = Address::new(secp, &random_buf, false, is_bech32);
+        let compressed = Address::new(secp, &random_buf, true, is_bech32);
 
         Couple {
             uncompressed,
@@ -27,18 +27,19 @@ impl Couple {
         }
     }
 
-    pub fn starts_with_any(&self, addresses: &[String], case_sensitive: bool) -> bool {
-        for address in addresses.iter() {
-            if self.starts_with(address, case_sensitive) {
+    pub fn starts_with_any(&self, addresses: &[String], is_case_sensitive: bool) -> bool {
+        for address in addresses {
+            if self.starts_with(address, is_case_sensitive) {
                 return true;
             }
         }
         false
     }
 
-    pub fn starts_with(&self, starts_with: &str, case_sensitive: bool) -> bool {
-        self.uncompressed.starts_with(starts_with, case_sensitive)
-            || self.compressed.starts_with(starts_with, case_sensitive)
+    pub fn starts_with(&self, starts_with: &str, is_case_sensitive: bool) -> bool {
+        self.uncompressed
+            .starts_with(starts_with, is_case_sensitive)
+            || self.compressed.starts_with(starts_with, is_case_sensitive)
     }
 }
 
@@ -51,26 +52,22 @@ pub struct Address {
 impl Address {
     pub fn new(
         secp: &Secp256k1<impl Signing>,
-        data: &[u8],
+        random_bytes: &[u8],
         compressed: bool,
-        bech: bool,
+        is_bech32: bool,
     ) -> Address {
-        let key = match SecretKey::from_slice(data) {
-            Ok(sk) => sk,
-            Err(err) => panic!(
-                "Error creating secret key from random bytes {:?}",
-                err.to_string()
-            ),
-        };
+        let secret_key = SecretKey::from_slice(random_bytes)
+            .expect("Failed to create secret key from random bytes");
 
         let private_key = util::key::PrivateKey {
             compressed,
             network: Network::Bitcoin,
-            key,
+            key: secret_key,
         };
 
         let public_key = util::key::PublicKey::from_private_key(&secp, &private_key);
-        let address: util::address::Address = if bech {
+
+        let address: util::address::Address = if is_bech32 {
             util::address::Address::p2wpkh(&public_key, Network::Bitcoin)
         } else {
             util::address::Address::p2pkh(&public_key, Network::Bitcoin)
@@ -83,14 +80,14 @@ impl Address {
         }
     }
 
-    pub fn starts_with(&self, starts_with: &str, case_sensitive: bool) -> bool {
-        if case_sensitive {
+    pub fn starts_with(&self, starts_with: &str, is_case_sensitive: bool) -> bool {
+        if is_case_sensitive {
             self.address.to_string().starts_with(starts_with)
         } else {
             self.address
                 .to_string()
                 .to_lowercase()
-                .starts_with(starts_with)
+                .starts_with(starts_with.to_lowercase().as_str())
         }
     }
 }

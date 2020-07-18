@@ -6,8 +6,8 @@ use secp256k1::Secp256k1;
 use serde_json::json;
 use spinners::{Spinner, Spinners};
 use std::fs::File;
-use std::io::{self, BufRead};
-use std::path::Path;
+use std::io::BufRead;
+use std::io::BufReader;
 use std::process;
 use std::time::Instant;
 
@@ -16,38 +16,42 @@ mod cli;
 fn main() {
     let matches = cli::ask().get_matches();
 
-    if !matches.is_present("starts-with") && !matches.is_present("file-input") {
-        eprintln!("Start with prefix must be provided use --starts-with or --file-input");
+    if !matches.is_present("starts-with") && !matches.is_present("file") {
+        eprintln!("Start with prefix must be provided use --starts-with or --file");
         process::exit(1);
     }
 
-    let spinner = Spinner::new(Spinners::Dots12, "Calculating vanity address".into());
+    let spinner = Spinner::new(Spinners::Dots12, "Finding Bitcoin vanity address".into());
     let started_at = Instant::now();
     let secp = Secp256k1::new();
 
-    let case_sensitive: bool = matches.is_present("case-sensitive");
+    let is_case_sensitive: bool = matches.is_present("case-sensitive");
     let is_bech32: bool = matches.is_present("bech32");
 
-    let couple: Couple = if matches.is_present("file-input") {
-        let file_name: &str = matches.value_of("file-input").unwrap();
-        let addresses = load_file_into_vector(file_name);
+    let num_threads: usize = matches
+        .value_of("threads")
+        .and_then(|duration| duration.parse().ok())
+        .unwrap_or_else(num_cpus::get);
 
+    let rayon_pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .expect("Failed to create thread pool");
+
+    let couple: Couple = rayon_pool.install(|| {
         rayon::iter::repeat(Couple::new)
             .map(|couple_new| couple_new(&secp, is_bech32))
-            .find_any(|couple| couple.starts_with_any(&addresses, case_sensitive))
-            .unwrap()
-    } else {
-        let starts_with: String = if case_sensitive {
-            matches.value_of("starts-with").unwrap().to_string()
-        } else {
-            matches.value_of("starts-with").unwrap().to_lowercase()
-        };
+            .find_any(|couple| match matches.value_of("starts-with") {
+                Some(prefix) => couple.starts_with(&prefix, is_case_sensitive),
+                None => {
+                    let file_name: &str = matches.value_of("file").unwrap();
+                    let addresses = get_addresses_from_file(file_name);
 
-        rayon::iter::repeat(Couple::new)
-            .map(|couple_new| couple_new(&secp, is_bech32))
-            .find_any(|couple| couple.starts_with(&starts_with, case_sensitive))
-            .unwrap()
-    };
+                    couple.starts_with_any(&addresses, is_case_sensitive)
+                }
+            })
+            .expect("Failed to find address match")
+    });
 
     spinner.stop();
 
@@ -68,25 +72,14 @@ fn main() {
     println!("{}", result.to_string());
 }
 
-fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-where
-    P: AsRef<Path>,
-{
-    let file = File::open(filename)?;
-    Ok(io::BufReader::new(file).lines())
-}
+fn get_addresses_from_file(file_name: &str) -> Vec<String> {
+    let file = File::open(file_name).unwrap();
+    let buffer = BufReader::new(file);
 
-fn load_file_into_vector(file_name: &str) -> Vec<String> {
-    let mut addresses: Vec<String> = Vec::new();
-    if let Ok(lines) = read_lines(file_name) {
-        // Consumes the iterator, returns an (Optional) String
-        for line in lines {
-            if let Ok(address) = line {
-                addresses.push(address);
-            }
-        }
-    }
-    addresses
+    buffer
+        .lines()
+        .map(|line| line.expect("Failed to read address pattern from input file"))
+        .collect()
 }
 
 #[cfg(test)]
