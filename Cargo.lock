@@ -244,7 +244,7 @@ dependencies = [
 
 [[package]]
 name = "nakatoshi"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bitcoin 0.23.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.1 (registry+https://github.com/rust-lang/crates.io-index)",
