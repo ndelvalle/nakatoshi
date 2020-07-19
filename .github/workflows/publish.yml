@@ -51,7 +51,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish package to rust package registry
-        if: startsWith(github.ref, 'refs/tags/')
+        # Push to crates.io only once.
+        if: matrix.os == 'ubuntu-latest'
         run: |
           cargo package
           cargo publish --token ${{ secrets.CARGO_TOKEN }}
