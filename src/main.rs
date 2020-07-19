@@ -1,9 +1,6 @@
-mod address;
-
 use address::Couple;
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
-use serde_json::json;
 use spinners::{Spinner, Spinners};
 use std::fs::File;
 use std::io::BufRead;
@@ -11,7 +8,9 @@ use std::io::BufReader;
 use std::process;
 use std::time::Instant;
 
+mod address;
 mod cli;
+mod print_result;
 
 fn main() {
     let matches = cli::ask().get_matches();
@@ -55,21 +54,20 @@ fn main() {
 
     spinner.stop();
 
-    let result = json!({
-        "uncompressed": {
-            "private_key": couple.uncompressed.private_key.to_string(),
-            "public_key": couple.uncompressed.public_key.to_string(),
-            "address": couple.uncompressed.address.to_string()
-        },
-        "compressed": {
-            "private_key": couple.compressed.private_key.to_string(),
-            "public_key": couple.compressed.public_key.to_string(),
-            "address": couple.compressed.address.to_string()
-        },
-        "creation_time": started_at.elapsed()
-    });
+    match matches.value_of("starts-with") {
+        Some(prefix) => print_result::print_result(couple, started_at, prefix, is_case_sensitive),
+        None => {
+            let file_name: &str = matches.value_of("file").unwrap();
+            let addresses = get_addresses_from_file(file_name);
 
-    println!("{}", result.to_string());
+            print_result::print_result_from_multiple_addresses_options(
+                couple,
+                started_at,
+                addresses,
+                is_case_sensitive,
+            );
+        }
+    }
 }
 
 fn get_addresses_from_file(file_name: &str) -> Vec<String> {
