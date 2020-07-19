@@ -4,6 +4,7 @@ use secp256k1::constants;
 use secp256k1::key::SecretKey;
 use secp256k1::{Secp256k1, Signing};
 
+
 fn get_random_buf() -> [u8; constants::SECRET_KEY_SIZE] {
     let mut buf = [0u8; constants::SECRET_KEY_SIZE];
     getrandom::getrandom(&mut buf).expect("Failed to create random bytes");
