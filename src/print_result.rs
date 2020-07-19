@@ -3,7 +3,12 @@ use std::time::Instant;
 
 use crate::address;
 
-pub fn print_result(couple: address::Couple, started_at: Instant, starts_with: &str, is_case_sensitive: bool) {
+pub fn print_result(
+    couple: address::Couple,
+    started_at: Instant,
+    starts_with: &str,
+    is_case_sensitive: bool,
+) {
     let is_compressed = couple
         .compressed
         .starts_with(starts_with, is_case_sensitive);
