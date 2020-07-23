@@ -3,14 +3,18 @@ use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
 use spinners::{Spinner, Spinners};
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::path::PathBuf;
 use std::process;
 use std::time::Instant;
 
 mod address;
 mod cli;
 mod print_result;
+
+use print_result::Output;
 
 fn main() {
     let matches = cli::ask().get_matches();
@@ -32,6 +36,33 @@ fn main() {
         .and_then(|duration| duration.parse().ok())
         .unwrap_or_else(num_cpus::get);
 
+    let mut output = Output::new();
+
+    // Feature #18 not implemented yet
+    let multiple_iterations = false;
+
+    let stdout = Box::leak(Box::new(std::io::stdout()));
+    let handle = stdout.lock();
+
+    if multiple_iterations { 
+        output.set_log_stream(Some(Box::new(handle)));
+    } else {
+        output.add_output_stream(Box::new(handle));
+    }
+
+    if let Some(output_filename) = matches.value_of("output-file") {
+        let file_path = PathBuf::from(output_filename);
+        let output_file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create_new(true)
+            .open(file_path)
+            .expect("Can not open the output file.");
+
+        output.add_output_stream(Box::new(output_file));
+    }
+
+   
     let rayon_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build()
@@ -55,17 +86,12 @@ fn main() {
     spinner.stop();
 
     match matches.value_of("starts-with") {
-        Some(prefix) => print_result::print_result(couple, started_at, prefix, is_case_sensitive),
+        Some(prefix) => output.write(&couple, started_at, prefix, is_case_sensitive),
         None => {
             let file_name: &str = matches.value_of("file").unwrap();
             let addresses = get_addresses_from_file(file_name);
 
-            print_result::print_result_from_multiple_addresses_options(
-                couple,
-                started_at,
-                addresses,
-                is_case_sensitive,
-            );
+            output.write_from_multiple_addresses(&couple, started_at, addresses, is_case_sensitive);
         }
     }
 }

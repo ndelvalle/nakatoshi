@@ -41,4 +41,12 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
                 .default_value("The number of CPUs available on the current system")
                 .help("Number of threads to be used"),
         )
+        .arg(
+            clap::Arg::with_name("output-file")
+                .short("o")
+                .long("output-file")
+                .takes_value(true)
+                .help("Output file")
+                .default_value("Default output stream is stdout.")
+            )
 }
