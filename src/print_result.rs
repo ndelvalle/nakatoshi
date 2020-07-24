@@ -53,6 +53,26 @@ impl Output {
             )
         };
 
+        if let Some(log_stream) = &self.log_stream {
+            // TODO:- Implement the condition
+            if true {
+                let last_results = self.results_since_last_print;
+                self.results_since_last_print =0 ;
+                let last_print_time = self.last_print_time;
+                self.last_print_time = Instant::now();
+
+                let duration = self.last_print_time - last_print_time;
+                let millis = duration.as_millis();
+                let minutes = millis/(1000*60);
+
+                println!("{} addresses found in {} minutes.", last_results, minutes );
+
+            } else {
+                self.results_since_last_print += 1;
+            }
+        }
+
+
         let result = json!({
             "private_key": private_key,
             "public_key": public_key,
