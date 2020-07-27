@@ -46,7 +46,6 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
                 .short("o")
                 .long("output-file")
                 .takes_value(true)
-                .help("Output file")
-                .default_value("Default output stream is stdout.")
-            )
+                .help("Output file"),
+        )
 }

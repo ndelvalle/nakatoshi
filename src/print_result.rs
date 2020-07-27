@@ -53,25 +53,22 @@ impl Output {
             )
         };
 
-        if let Some(log_stream) = &self.log_stream {
-            // TODO:- Implement the condition
-            if true {
+        if let Some(log_stream) = &mut self.log_stream {
+            let duration = Instant::now() - self.last_print_time;
+            let millis = duration.as_millis();
+            let minutes = millis / (1000 * 60);
+            if minutes % 5 == 0 || minutes >= 20 || self.results_since_last_print >= 100 {
                 let last_results = self.results_since_last_print;
-                self.results_since_last_print =0 ;
-                let last_print_time = self.last_print_time;
+                self.results_since_last_print = 0;
                 self.last_print_time = Instant::now();
 
-                let duration = self.last_print_time - last_print_time;
-                let millis = duration.as_millis();
-                let minutes = millis/(1000*60);
-
-                println!("{} addresses found in {} minutes.", last_results, minutes );
-
+                let log_output =
+                    format!("{} addresses found in {} minutes.", last_results, minutes);
+                let _result = log_stream.write_all(log_output.as_bytes());
             } else {
                 self.results_since_last_print += 1;
             }
         }
-
 
         let result = json!({
             "private_key": private_key,
@@ -82,7 +79,8 @@ impl Output {
         });
 
         for stream in self.output_streams.iter_mut() {
-           let _result = stream.write_all(result.to_string().as_bytes()); 
+            let result_string = result.to_string() + "\n";
+            let _written = stream.write_all(result_string.as_bytes());
         }
     }
 

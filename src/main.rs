@@ -24,7 +24,7 @@ fn main() {
         process::exit(1);
     }
 
-    let spinner = Spinner::new(Spinners::Dots12, "Finding Bitcoin vanity address".into());
+    let spinner = Spinner::new(Spinners::Dots12, "Finding Bitcoin vanity address\n".into());
     let started_at = Instant::now();
     let secp = Secp256k1::new();
 
@@ -44,7 +44,7 @@ fn main() {
     let stdout = Box::leak(Box::new(std::io::stdout()));
     let handle = stdout.lock();
 
-    if multiple_iterations { 
+    if multiple_iterations {
         output.set_log_stream(Some(Box::new(handle)));
     } else {
         output.add_output_stream(Box::new(handle));
@@ -62,7 +62,6 @@ fn main() {
         output.add_output_stream(Box::new(output_file));
     }
 
-   
     let rayon_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build()
