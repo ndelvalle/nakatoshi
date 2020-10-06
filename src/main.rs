@@ -1,9 +1,7 @@
-use address::BitcoinAddress;
+use core::sync::atomic::{AtomicUsize, Ordering};
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
-use spinners::{Spinner, Spinners};
-use std::fs::File;
-use std::fs::OpenOptions;
+use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -13,10 +11,11 @@ mod address;
 mod cli;
 mod output;
 
+use address::BitcoinAddress;
+
 fn main() {
     let matches = cli::prompt().get_matches();
 
-    // let spinner = Spinner::new(Spinners::Dots12, "Finding Bitcoin vanity address".into());
     let started_at = Instant::now();
     let secp = Secp256k1::new();
 
@@ -45,12 +44,12 @@ fn main() {
 
     if let Some(output_filename) = matches.value_of("output-file") {
         let file_path = PathBuf::from(output_filename);
-        let output_file = OpenOptions::new()
+        let output_file = fs::OpenOptions::new()
             .write(true)
             .append(true)
             .create_new(true)
             .open(file_path)
-            .expect("Failed to open output file.");
+            .expect("Failed to open output file");
 
         output.add_output_stream(Box::new(output_file));
     }
@@ -60,14 +59,15 @@ fn main() {
         .build()
         .expect("Failed to create thread pool");
 
+    let iterations: AtomicUsize = AtomicUsize::new(0);
     let bitcoin_address: BitcoinAddress = rayon_pool.install(|| {
         rayon::iter::repeat(BitcoinAddress::new)
+            .inspect(|_| {
+                iterations.fetch_add(1, Ordering::Relaxed);
+            })
             .map(|create| create(&secp, is_compressed, is_bech32))
             .find_any(|bitcoin_address| match matches.value_of("prefix") {
-                Some(prefix) => {
-                    println!("Asd");
-                    bitcoin_address.starts_with(&prefix, is_case_sensitive)
-                },
+                Some(prefix) => bitcoin_address.starts_with(&prefix, is_case_sensitive),
                 None => {
                     // TODO: File content should be in memory already
                     let file_name: &str = matches.value_of("input-file").unwrap();
@@ -79,13 +79,11 @@ fn main() {
             .expect("Failed to find Bitcoin address match")
     });
 
-    // spinner.stop();
-
-    output.write(&bitcoin_address, started_at);
+    output.write(&bitcoin_address, started_at, iterations.into_inner());
 }
 
 fn get_addresses_from_file(file_name: &str) -> Vec<String> {
-    let file = File::open(file_name).unwrap();
+    let file = fs::File::open(file_name).unwrap();
     let buffer = BufReader::new(file);
 
     buffer

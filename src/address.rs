@@ -13,7 +13,6 @@ pub struct BitcoinAddress {
 
 impl BitcoinAddress {
     pub fn new(secp: &Secp256k1<impl Signing>, is_compressed: bool, is_bech32: bool) -> Self {
-        println!("2222");
         let random_bytes = get_random_bytes();
         let secret_key =
             SecretKey::from_slice(&random_bytes).expect("Failed to create Bitcoin secret key");
@@ -32,7 +31,7 @@ impl BitcoinAddress {
             Address::p2pkh(&public_key, Network::Bitcoin)
         };
 
-        BitcoinAddress {
+        Self {
             private_key,
             public_key,
             address,

@@ -29,7 +29,12 @@ impl Output {
         self.log_stream = stream;
     }
 
-    pub fn write(&mut self, bitcoin_address: &address::BitcoinAddress, started_at: Instant) {
+    pub fn write(
+        &mut self,
+        bitcoin_address: &address::BitcoinAddress,
+        started_at: Instant,
+        iterations: usize,
+    ) {
         if let Some(log_stream) = &mut self.log_stream {
             let duration = Instant::now() - self.last_print_time;
             let millis = duration.as_millis();
@@ -51,7 +56,8 @@ impl Output {
             "private_key": bitcoin_address.private_key.to_string(),
             "public_key": bitcoin_address.public_key.to_string(),
             "address": bitcoin_address.address.to_string(),
-            "creation_time": started_at.elapsed()
+            "seconds": started_at.elapsed().as_secs(),
+            "iterations": iterations
         });
 
         for stream in self.output_streams.iter_mut() {

@@ -4,8 +4,7 @@ pub fn prompt<'a, 'b>() -> clap::App<'a, 'b> {
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(
             clap::Arg::with_name("prefix")
-                .short("p")
-                .long("prefix")
+                .index(1)
                 .takes_value(true)
                 .required_unless_one(&["input-file"])
                 .help("Prefix used to match addresses"),
