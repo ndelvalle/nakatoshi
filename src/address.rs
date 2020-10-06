@@ -27,6 +27,7 @@ impl BitcoinAddress {
 
         let address: Address = if is_bech32 {
             Address::p2wpkh(&public_key, Network::Bitcoin)
+                .expect("Failed to create Bitcoin bech32 address")
         } else {
             Address::p2pkh(&public_key, Network::Bitcoin)
         };
