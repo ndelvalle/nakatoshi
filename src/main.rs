@@ -1,15 +1,14 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
+use serde_json::json;
 use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::path::PathBuf;
 use std::time::Instant;
 
 mod address;
 mod cli;
-mod output;
 
 use address::BitcoinAddress;
 
@@ -25,34 +24,16 @@ fn main() {
 
     let num_threads = matches
         .value_of("threads")
-        .and_then(|duration| duration.parse().ok())
+        .and_then(|num_threads| num_threads.parse().ok())
         .unwrap_or_else(num_cpus::get);
 
-    let mut output = output::Output::new();
-
-    // Feature #18 not implemented yet
-    let multiple_iterations = false;
-
-    let stdout = Box::leak(Box::new(std::io::stdout()));
-    let handle = stdout.lock();
-
-    if multiple_iterations {
-        output.set_log_stream(Some(Box::new(handle)));
-    } else {
-        output.add_output_stream(Box::new(handle));
-    }
-
-    if let Some(output_filename) = matches.value_of("output-file") {
-        let file_path = PathBuf::from(output_filename);
-        let output_file = fs::OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create_new(true)
-            .open(file_path)
-            .expect("Failed to open output file");
-
-        output.add_output_stream(Box::new(output_file));
-    }
+    let prefixes = match matches.value_of("prefix") {
+        Some(prefix) => vec![prefix.to_owned()],
+        None => {
+            let file_name = matches.value_of("input-file").unwrap();
+            get_prefixes_from_file(file_name)
+        }
+    };
 
     let rayon_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
@@ -66,29 +47,28 @@ fn main() {
                 iterations.fetch_add(1, Ordering::Relaxed);
             })
             .map(|create| create(&secp, is_compressed, is_bech32))
-            .find_any(|bitcoin_address| match matches.value_of("prefix") {
-                Some(prefix) => bitcoin_address.starts_with(&prefix, is_case_sensitive),
-                None => {
-                    // TODO: File content should be in memory already
-                    let file_name: &str = matches.value_of("input-file").unwrap();
-                    let addresses = get_addresses_from_file(file_name);
-
-                    bitcoin_address.starts_with_any(&addresses, is_case_sensitive)
-                }
-            })
+            .find_any(|address| address.starts_with_any(&prefixes, is_case_sensitive))
             .expect("Failed to find Bitcoin address match")
     });
 
-    output.write(&bitcoin_address, started_at, iterations.into_inner());
+    let result = json!({
+        "private_key": bitcoin_address.private_key.to_string(),
+        "public_key": bitcoin_address.public_key.to_string(),
+        "address": bitcoin_address.address.to_string(),
+        "seconds": started_at.elapsed().as_secs(),
+        "iterations": iterations
+    });
+
+    print!("{}", result);
 }
 
-fn get_addresses_from_file(file_name: &str) -> Vec<String> {
+fn get_prefixes_from_file(file_name: &str) -> Vec<String> {
     let file = fs::File::open(file_name).unwrap();
     let buffer = BufReader::new(file);
 
     buffer
         .lines()
-        .map(|line| line.expect("Failed to read address pattern from input file"))
+        .map(|line| line.expect("Failed to read Bitcoin address pattern from input file"))
         .collect()
 }
 
