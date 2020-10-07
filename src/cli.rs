@@ -18,13 +18,6 @@ pub fn prompt<'a, 'b>() -> clap::App<'a, 'b> {
                 .help("File with prefixes to match addresses with"),
         )
         .arg(
-            clap::Arg::with_name("output-file")
-                .short("o")
-                .long("output-file")
-                .takes_value(true)
-                .help("Output file to store results"),
-        )
-        .arg(
             clap::Arg::with_name("threads")
                 .short("t")
                 .long("threads")

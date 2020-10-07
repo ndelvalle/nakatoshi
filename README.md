@@ -4,10 +4,11 @@
 
 A [Bitcoin Vanity Address](https://github.com/bitcoinbook/bitcoinbook/blob/develop/ch04.asciidoc#vanity-addresses) generator.
 
-nakatoshi accepts as input a "starts with" string to search for, and produces an address and private / public keys. The amount of time required to find a given pattern depends on how long the string is, the speed of your computer, and whether you get lucky.
+nakatoshi accepts as input a prefix string (Or a file with multiple prefixes) to search for and produce
+a Bitcoin address and private / public keys. The amount of time required to find a given pattern depends
+on how long the string is, the speed of your computer, and whether you get lucky.
 
 ## Install
-
 
 ### Cargo
 
@@ -26,66 +27,62 @@ $ wget -O nakatoshi "https://github.com/ndelvalle/nakatoshi/releases/download/v0
 $ chmod +x nakatoshi
 ```
 
-## CLI information
-
+## CLI
 
 ```
-nakatoshi 0.1.0
-Bitcoin vanity address generator
-
 USAGE:
-    nakatoshi [FLAGS] [OPTIONS]
+    nakatoshi [FLAGS] [OPTIONS] <prefix> --input-file <input-file>
 
 FLAGS:
-    -b, --bech32            Use Bech32 addresses starting with bc1q (Lowercase address)
-    -c, --case-sensitive    Use case sensitive to match addresses
+    -b, --bech32            Use Bech32 addresses. Starting with bc1q (Lowercase address)
+    -c, --case-sensitive    Use case sensitive comparison to match addresses
     -h, --help              Prints help information
+    -u, --uncompressed      Use uncompressed private an public keys
     -V, --version           Prints version information
 
 OPTIONS:
-    -f, --file <file>                  File with starts-with prefixes to generate addresses
-    -s, --starts-with <starts-with>    Start with prefix used to match addresses
-    -t, --threads <threads>            Number of threads to be used [default: The number of CPUs available on the
-                                       current system]
+    -i, --input-file <input-file>    File with prefixes to match addresses with
+    -t, --threads <threads>          Number of threads to be used [default: The number of CPUs available on the current
+                                     system]
+
+ARGS:
+    <prefix>    Prefix used to match addresses
 ```
 
 
-## Use examples:
+## Examples:
 
-#### Generate a vanity address (case sensitive)
+#### Generate a vanity address
+
 ```shell
-nakatoshi 1ki
+nakatoshi 1Kids
 ```
 
-#### Generate a vanity address (case insensitive)
+#### Use a file with multiple prefixes
 
-(Note: might be a bit faster since matching is less strict)
+A file with one address prefix on each newline can be used to search for a vanity
+address. This reduces the time to find a result.
+
+Example:
+
 ```shell
-nakatoshi 1ki -i
+nakatoshi --input-file input.txt
 ```
 
-#### Use a file with multiple possible matches
-A file with 1 pattern per newline can be used to search for vanity addresses.
-When for example you have a file called `input.txt` it would look like this:
-```shell
-nakatoshi -f input.txt
+The contents of the `input.txt` file looks like this:
 ```
-And running everything case insensitive would be:
-```shell
-nakatoshi -f input.txt -i
-```
-The contents of the file would look like:
-```
-1git
-1hub
-1etc
+1Kids
+1Love
 ```
 
-#### Search for a Bech32 address
+#### Bech32 addresses
+
 ```shell
 nakatoshi -b bc1qki
 ```
-(Note: There is no need to search with the case-insensitive flag because `bc1q` addresses are lowercase.)
+
+Note: There is no need to search with the `case-sensitive` flag because `bc1q` addresses are
+always lowercase.
 
 ## Development
 
@@ -97,7 +94,5 @@ $ cargo build
 $ cargo run -- -help
 ```
 
-Note: `Cargo run` creates an unoptimized executable with debug info.
-When testing the speed/throughput of the application, be sure to `cargo run --release` to get the best performance from the application.
-
-Adding parameters in this context looks like `cargo run --release -- -f somefile.txt -i`
+Note: `Cargo run` creates an unoptimized executable with debug info. When testing
+the speed/throughput of the application, make sure to use `cargo run --release`.
