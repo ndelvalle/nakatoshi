@@ -10,6 +10,13 @@ on how long the string is, the speed of your computer, and whether you get lucky
 
 ## Install
 
+### MacOS
+
+```
+$ brew tap ndelvalle/nakatoshi
+$ brew install nakatoshi
+```
+
 ### Cargo
 
 ```
