@@ -32,7 +32,7 @@ and add executable permissions:
 
 ```bash
 # Linux example:
-$ wget -O nakatoshi "https://github.com/ndelvalle/nakatoshi/releases/download/v0.2.3/nakatoshi-linux-amd64"
+$ wget -O nakatoshi "https://github.com/ndelvalle/nakatoshi/releases/download/v0.2.4/nakatoshi-linux-amd64"
 $ chmod +x nakatoshi
 ```
 
@@ -64,10 +64,10 @@ ARGS:
 #### Generate a vanity address
 
 ```shell
-nakatoshi 1Kids | qj
+nakatoshi 1Kids
 ```
 
-#### Generate a vanity address and pretty parse JSON response
+#### Generate a vanity address and parse JSON response
 
 ```shell
 nakatoshi 1Bitc | jq
