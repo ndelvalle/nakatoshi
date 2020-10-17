@@ -10,6 +10,13 @@ on how long the string is, the speed of your computer, and whether you get lucky
 
 ## Install
 
+### MacOS
+
+```
+$ brew tap ndelvalle/nakatoshi
+$ brew install nakatoshi
+```
+
 ### Cargo
 
 ```
@@ -23,7 +30,7 @@ and add executable permissions:
 
 ```bash
 # Linux example:
-$ wget -O nakatoshi "https://github.com/ndelvalle/nakatoshi/releases/download/v0.1.1/nakatoshi-linux-amd64"
+$ wget -O nakatoshi "https://github.com/ndelvalle/nakatoshi/releases/download/v0.2.3/nakatoshi-linux-amd64"
 $ chmod +x nakatoshi
 ```
 
