@@ -1,4 +1,5 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
+use indicatif::{ProgressBar, ProgressStyle};
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
 use serde_json::json;
@@ -40,23 +41,31 @@ fn main() {
         .build()
         .expect("Failed to create thread pool");
 
+    let progress = ProgressBar::new_spinner();
+    progress.set_style(ProgressStyle::default_bar().template("[{elapsed_precise}] {pos} attempts"));
+
     let iterations: AtomicUsize = AtomicUsize::new(0);
     let bitcoin_address: BitcoinAddress = rayon_pool.install(|| {
         rayon::iter::repeat(BitcoinAddress::new)
             .inspect(|_| {
                 iterations.fetch_add(1, Ordering::Relaxed);
+                progress.inc(1);
             })
             .map(|create| create(&secp, is_compressed, is_bech32))
             .find_any(|address| address.starts_with_any(&prefixes, is_case_sensitive))
             .expect("Failed to find Bitcoin address match")
     });
 
+    progress.finish_and_clear();
+
     let result = json!({
         "private_key": bitcoin_address.private_key.to_string(),
         "public_key": bitcoin_address.public_key.to_string(),
         "address": bitcoin_address.address.to_string(),
-        "seconds": started_at.elapsed().as_secs(),
-        "iterations": iterations
+        "metadata": {
+            "seconds_elapsed": started_at.elapsed().as_secs(),
+            "attempts": iterations,
+        }
     });
 
     print!("{}", result);
@@ -66,10 +75,13 @@ fn get_prefixes_from_file(file_name: &str) -> Vec<String> {
     let file = fs::File::open(file_name).unwrap();
     let buffer = BufReader::new(file);
 
-    buffer
+    let mut prefixes = buffer
         .lines()
         .map(|line| line.expect("Failed to read Bitcoin address pattern from input file"))
-        .collect()
+        .collect::<Vec<String>>();
+
+    prefixes.sort_by(|a, b| a.len().cmp(&b.len()));
+    prefixes
 }
 
 #[cfg(test)]
