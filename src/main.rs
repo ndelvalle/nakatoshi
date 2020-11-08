@@ -43,6 +43,7 @@ fn main() {
 
     let progress = ProgressBar::new_spinner();
     progress.set_style(ProgressStyle::default_bar().template("[{elapsed_precise}] {pos} attempts"));
+    progress.set_draw_delta(1_000);
 
     let iterations: AtomicUsize = AtomicUsize::new(0);
     let bitcoin_address: BitcoinAddress = rayon_pool.install(|| {
