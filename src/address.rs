@@ -23,7 +23,7 @@ impl BitcoinAddress {
             key: secret_key,
         };
 
-        let public_key = PublicKey::from_private_key(&secp, &private_key);
+        let public_key = PublicKey::from_private_key(secp, &private_key);
 
         let address: Address = if is_bech32 {
             Address::p2wpkh(&public_key, Network::Bitcoin)

@@ -81,7 +81,7 @@ fn get_prefixes_from_file(file_name: &str) -> Vec<String> {
         .map(|line| line.expect("Failed to read Bitcoin address pattern from input file"))
         .collect::<Vec<String>>();
 
-    prefixes.sort_by(|a, b| a.len().cmp(&b.len()));
+    prefixes.sort_by_key(|a| a.len());
     prefixes
 }
 
