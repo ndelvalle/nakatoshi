@@ -8,8 +8,6 @@ nakatoshi accepts as input a prefix string (Or a file with multiple prefixes) to
 a Bitcoin address and private / public keys. The amount of time required to find a given pattern depends
 on how long the string is, the speed of your computer, and whether you get lucky.
 
-![](demo.gif)
-
 ## Install
 
 ### MacOS
