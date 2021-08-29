@@ -1,4 +1,3 @@
-use core::sync::atomic::{AtomicUsize, Ordering};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::iter::ParallelIterator;
 use secp256k1::Secp256k1;
@@ -6,7 +5,6 @@ use serde_json::json;
 use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::time::Instant;
 
 mod address;
 mod cli;
@@ -15,8 +13,6 @@ use address::BitcoinAddress;
 
 fn main() {
     let matches = cli::prompt().get_matches();
-
-    let started_at = Instant::now();
     let secp = Secp256k1::new();
 
     let is_case_sensitive = matches.is_present("case-sensitive");
@@ -43,30 +39,24 @@ fn main() {
 
     let progress = ProgressBar::new_spinner();
     progress.set_style(ProgressStyle::default_bar().template("[{elapsed_precise}] {pos} attempts"));
-    progress.set_draw_delta(1_000);
+    progress.set_draw_rate(10);
 
-    let iterations: AtomicUsize = AtomicUsize::new(0);
     let bitcoin_address: BitcoinAddress = rayon_pool.install(|| {
         rayon::iter::repeat(BitcoinAddress::new)
-            .inspect(|_| {
-                iterations.fetch_add(1, Ordering::Relaxed);
-                progress.inc(1);
-            })
+            .inspect(|_| progress.inc(1))
             .map(|create| create(&secp, is_compressed, is_bech32))
             .find_any(|address| address.starts_with_any(&prefixes, is_case_sensitive))
             .expect("Failed to find Bitcoin address match")
     });
 
+    let attempts = progress.position();
     progress.finish_and_clear();
 
     let result = json!({
         "private_key": bitcoin_address.private_key.to_string(),
         "public_key": bitcoin_address.public_key.to_string(),
         "address": bitcoin_address.address.to_string(),
-        "metadata": {
-            "seconds_elapsed": started_at.elapsed().as_secs(),
-            "attempts": iterations,
-        }
+        "attempts": attempts
     });
 
     print!("{}", result);
