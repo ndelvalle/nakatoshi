@@ -14,7 +14,7 @@ categories = ["command-line-utilities"]
 [dependencies]
 bitcoin = "0.27.1"
 clap = "2.33.3"
-time = "0.3.3"
+time = "0.3.4"
 rayon = "1.5.0"
 getrandom = "0.2.2"
 secp256k1 = "0.20.3"
