@@ -1,9 +1,9 @@
 use bitcoin::network::constants::Network;
-use bitcoin::util::address::Address;
-use bitcoin::util::key::{PrivateKey, PublicKey};
 use bitcoin::secp256k1;
 use bitcoin::secp256k1::key::SecretKey;
 use bitcoin::secp256k1::{Secp256k1, Signing};
+use bitcoin::util::address::Address;
+use bitcoin::util::key::{PrivateKey, PublicKey};
 
 pub struct BitcoinAddress {
     pub private_key: PrivateKey,
