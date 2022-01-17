@@ -78,7 +78,7 @@ fn get_prefixes_from_file(file_name: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use crate::address::BitcoinAddress;
-    use secp256k1::Secp256k1;
+    use bitcoin::secp256k1::Secp256k1;
 
     #[test]
     fn create_compressed_bitcoin_public_key() {
