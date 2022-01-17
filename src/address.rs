@@ -1,9 +1,9 @@
 use bitcoin::network::constants::Network;
 use bitcoin::util::address::Address;
 use bitcoin::util::key::{PrivateKey, PublicKey};
-use secp256k1::constants;
-use secp256k1::key::SecretKey;
-use secp256k1::{Secp256k1, Signing};
+use bitcoin::secp256k1;
+use bitcoin::secp256k1::key::SecretKey;
+use bitcoin::secp256k1::{Secp256k1, Signing};
 
 pub struct BitcoinAddress {
     pub private_key: PrivateKey,
@@ -60,8 +60,8 @@ impl BitcoinAddress {
     }
 }
 
-fn get_random_bytes() -> [u8; constants::SECRET_KEY_SIZE] {
-    let mut buf = [0u8; constants::SECRET_KEY_SIZE];
+fn get_random_bytes() -> [u8; secp256k1::constants::SECRET_KEY_SIZE] {
+    let mut buf = [0u8; secp256k1::constants::SECRET_KEY_SIZE];
     getrandom::getrandom(&mut buf).expect("Failed to create random bytes");
     buf
 }

@@ -1,6 +1,6 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::iter::ParallelIterator;
-use secp256k1::Secp256k1;
+use bitcoin::secp256k1::Secp256k1;
 use serde_json::json;
 use std::fs;
 use std::io::BufRead;
