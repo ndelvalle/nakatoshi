@@ -1,5 +1,5 @@
-pub fn prompt<'a>() -> clap::App<'a> {
-    clap::App::new(env!("CARGO_PKG_NAME"))
+pub fn prompt<'a>() -> clap::Command<'a> {
+    clap::Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(
