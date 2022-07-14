@@ -1,9 +1,9 @@
 name: Rust
 
 on:
-  pull_request:
+  push:
     branches:
-      - master
+      - '*'
 
 jobs:
   rust-integration-jobs:
