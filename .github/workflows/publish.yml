@@ -41,12 +41,13 @@ jobs:
         run: |
           cargo build --all --release --locked
           strip target/release/nakatoshi
-          mv target/release/nakatoshi target/release/${{ matrix.asset_name }}
+          cd target/release && tar -czf nakatoshi.tar.gz nakatoshi
+          mv nakatoshi.tar.gz ${{ matrix.asset_name }}.tar.gz
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: target/release/${{ matrix.asset_name }}
+          files: target/release/${{ matrix.asset_name }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
