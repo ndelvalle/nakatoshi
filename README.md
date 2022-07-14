@@ -13,7 +13,7 @@ on how long the string is, the speed of your computer, and whether you get lucky
 ### MacOS
 
 ```
-$ brew tap ndelvalle/nakatoshi
+$ brew tap ndelvalle/utilities
 $ brew install nakatoshi
 ```
 
