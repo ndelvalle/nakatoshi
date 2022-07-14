@@ -1,6 +1,6 @@
 [package]
 name = "nakatoshi"
-version = "0.2.5"
+version = "0.2.6"
 authors = ["ndelvalle <nicolas.delvalle@gmail.com>"]
 edition = "2018"
 description = "Bitcoin vanity address generator"
