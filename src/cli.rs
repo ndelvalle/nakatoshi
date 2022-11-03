@@ -1,4 +1,4 @@
-pub fn prompt<'a>() -> clap::Command {
+pub fn prompt() -> clap::Command {
     clap::Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
