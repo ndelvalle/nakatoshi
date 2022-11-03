@@ -1,7 +1,6 @@
 use bitcoin::network::constants::Network;
 use bitcoin::secp256k1;
-use bitcoin::secp256k1::key::SecretKey;
-use bitcoin::secp256k1::{Secp256k1, Signing};
+use bitcoin::secp256k1::{Secp256k1, SecretKey, Signing};
 use bitcoin::util::address::Address;
 use bitcoin::util::key::{PrivateKey, PublicKey};
 
@@ -20,7 +19,7 @@ impl BitcoinAddress {
         let private_key = PrivateKey {
             compressed: is_compressed,
             network: Network::Bitcoin,
-            key: secret_key,
+            inner: secret_key,
         };
 
         let public_key = PublicKey::from_private_key(secp, &private_key);

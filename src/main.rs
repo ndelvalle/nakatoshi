@@ -15,19 +15,19 @@ fn main() {
     let matches = cli::prompt().get_matches();
     let secp = Secp256k1::new();
 
-    let is_case_sensitive = matches.is_present("case-sensitive");
-    let is_bech32 = matches.is_present("bech32");
-    let is_compressed = !matches.is_present("uncompressed");
+    let is_case_sensitive = matches.get_flag("case-sensitive");
+    let is_bech32 = matches.get_flag("bech32");
+    let is_compressed = !matches.get_flag("uncompressed");
 
     let num_threads = matches
-        .value_of("threads")
+        .get_one::<String>("threads")
         .and_then(|num_threads| num_threads.parse().ok())
         .unwrap_or_else(num_cpus::get);
 
-    let prefixes = match matches.value_of("prefix") {
+    let prefixes = match matches.get_one::<String>("prefix") {
         Some(prefix) => vec![prefix.to_owned()],
         None => {
-            let file_name = matches.value_of("input-file").unwrap();
+            let file_name = matches.get_one::<String>("input-file").unwrap();
             get_prefixes_from_file(file_name)
         }
     };
@@ -38,8 +38,11 @@ fn main() {
         .expect("Failed to create thread pool");
 
     let progress = ProgressBar::new_spinner();
-    progress.set_style(ProgressStyle::default_bar().template("[{elapsed_precise}] {pos} attempts"));
-    progress.set_draw_rate(10);
+    let template = ProgressStyle::default_bar()
+        .template("[{elapsed_precise}] {pos} attempts")
+        .unwrap();
+    progress.set_style(template);
+    // progress.set_draw_rate(10);
 
     let bitcoin_address: BitcoinAddress = rayon_pool.install(|| {
         rayon::iter::repeat(BitcoinAddress::new)
