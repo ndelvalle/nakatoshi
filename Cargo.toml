@@ -12,7 +12,7 @@ keywords = ["bitcoin", "address", "vanity", "vanity-address"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-bitcoin = "0.29.2"
+bitcoin = "0.31.0"
 clap = "4.4.7"
 time = "0.3.30"
 rayon = "1.8.0"
