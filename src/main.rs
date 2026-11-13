@@ -1,15 +1,19 @@
 use bitcoin::secp256k1::Secp256k1;
 use indicatif::{ProgressBar, ProgressStyle};
-use rayon::iter::ParallelIterator;
 use serde_json::json;
 use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
 mod address;
 mod cli;
 
-use address::BitcoinAddress;
+use address::{BitcoinAddress, KeyWalker, PrefixMatcher};
+
+// How many attempts a thread makes before it reports them.
+const PROGRESS_BATCH_SIZE: u64 = 1024;
 
 fn main() {
     let matches = cli::prompt().get_matches();
@@ -47,29 +51,59 @@ fn main() {
     progress.set_style(template);
     // progress.set_draw_rate(10);
 
-    if is_keep_going {
-        rayon_pool.install(|| {
-            rayon::iter::repeat(BitcoinAddress::new)
-                .inspect(|_| progress.inc(1))
-                .map(|create| create(&secp, is_compressed, is_bech32))
-                .filter(|address| address.starts_with_any(&prefixes, is_case_sensitive))
-                .for_each(|address| {
-                    let result = address_json(&address, progress.position());
-                    progress.suspend(|| println!("{}", result));
-                })
-        });
-        return;
-    }
+    let matcher = PrefixMatcher::new(&prefixes, is_case_sensitive, is_bech32);
+    let is_found = AtomicBool::new(false);
+    let found: Mutex<Option<(BitcoinAddress, u64)>> = Mutex::new(None);
 
-    let bitcoin_address: BitcoinAddress = rayon_pool.install(|| {
-        rayon::iter::repeat(BitcoinAddress::new)
-            .inspect(|_| progress.inc(1))
-            .map(|create| create(&secp, is_compressed, is_bech32))
-            .find_any(|address| address.starts_with_any(&prefixes, is_case_sensitive))
-            .expect("Failed to find Bitcoin address match")
+    rayon_pool.broadcast(|_| {
+        let mut keys = KeyWalker::new(&secp);
+        let mut attempts = 0;
+
+        loop {
+            if attempts == PROGRESS_BATCH_SIZE {
+                progress.inc(attempts);
+                attempts = 0;
+                if is_found.load(Ordering::Relaxed) {
+                    return;
+                }
+            }
+            attempts += 1;
+
+            if !matcher.matches(&keys.pubkey_hash(is_compressed)) {
+                keys.advance(&secp);
+                continue;
+            }
+
+            let secret_key = keys.secret_key();
+            // Consecutive keys are related, so don't hand out more than one of them.
+            keys = KeyWalker::new(&secp);
+
+            let address =
+                BitcoinAddress::from_secret_key(&secp, secret_key, is_compressed, is_bech32);
+            if !address.starts_with_any(&prefixes, is_case_sensitive) {
+                continue;
+            }
+
+            progress.inc(attempts);
+            attempts = 0;
+            if is_keep_going {
+                let result = address_json(&address, progress.position());
+                progress.suspend(|| println!("{}", result));
+            } else {
+                let mut found = found.lock().unwrap();
+                if found.is_none() {
+                    *found = Some((address, progress.position()));
+                }
+                is_found.store(true, Ordering::Relaxed);
+                return;
+            }
+        }
     });
 
-    let attempts = progress.position();
+    let (bitcoin_address, attempts) = found
+        .into_inner()
+        .unwrap()
+        .expect("Failed to find Bitcoin address match");
     progress.finish_and_clear();
 
     print!("{}", address_json(&bitcoin_address, attempts));
@@ -99,7 +133,8 @@ fn get_prefixes_from_file(file_name: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::address::BitcoinAddress;
+    use crate::address::{BitcoinAddress, KeyWalker, PrefixMatcher};
+    use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::Secp256k1;
 
     #[test]
@@ -163,5 +198,55 @@ mod tests {
         let expected = 34;
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn walked_keys_match_their_secret_key() {
+        let secp = Secp256k1::new();
+        let mut keys = KeyWalker::new(&secp);
+
+        for _ in 0..100 {
+            for is_compressed in [true, false] {
+                let address =
+                    BitcoinAddress::from_secret_key(&secp, keys.secret_key(), is_compressed, false);
+                assert_eq!(
+                    address.public_key.pubkey_hash().to_byte_array(),
+                    keys.pubkey_hash(is_compressed)
+                );
+            }
+            keys.advance(&secp);
+        }
+    }
+
+    #[test]
+    fn matcher_agrees_with_address() {
+        let secp = Secp256k1::new();
+        let mut keys = KeyWalker::new(&secp);
+
+        for _ in 0..100 {
+            for (is_bech32, is_case_sensitive, len) in
+                [(true, false, 7), (true, false, 36), (false, true, 4), (false, false, 4)]
+            {
+                let address =
+                    BitcoinAddress::from_secret_key(&secp, keys.secret_key(), true, is_bech32);
+                let address = address.address.to_string();
+                let hash = keys.pubkey_hash(true);
+
+                let prefix = if is_case_sensitive {
+                    address[..len].to_string()
+                } else {
+                    address[..len].to_uppercase()
+                };
+                let matcher = PrefixMatcher::new(&[prefix], is_case_sensitive, is_bech32);
+                assert!(matcher.matches(&hash));
+
+                // Change the last character of the prefix, it should not match anymore.
+                let last = if address[len - 1..len].eq_ignore_ascii_case("q") { "p" } else { "q" };
+                let prefix = format!("{}{}", &address[..len - 1], last);
+                let matcher = PrefixMatcher::new(&[prefix], is_case_sensitive, is_bech32);
+                assert!(!matcher.matches(&hash));
+            }
+            keys.advance(&secp);
+        }
     }
 }
