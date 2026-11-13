@@ -15,9 +15,12 @@ fn main() {
     let matches = cli::prompt().get_matches();
     let secp = Secp256k1::new();
 
-    let is_case_sensitive = matches.get_flag("case-sensitive");
     let is_bech32 = matches.get_flag("bech32");
+    // Bech32 addresses are always lowercase, so case-sensitive matching
+    // makes no sense for them; ignore the flag in that case.
+    let is_case_sensitive = matches.get_flag("case-sensitive") && !is_bech32;
     let is_compressed = !matches.get_flag("uncompressed");
+    let is_keep_going = matches.get_flag("keep-going");
 
     let num_threads = matches
         .get_one::<String>("threads")
@@ -44,6 +47,20 @@ fn main() {
     progress.set_style(template);
     // progress.set_draw_rate(10);
 
+    if is_keep_going {
+        rayon_pool.install(|| {
+            rayon::iter::repeat(BitcoinAddress::new)
+                .inspect(|_| progress.inc(1))
+                .map(|create| create(&secp, is_compressed, is_bech32))
+                .filter(|address| address.starts_with_any(&prefixes, is_case_sensitive))
+                .for_each(|address| {
+                    let result = address_json(&address, progress.position());
+                    progress.suspend(|| println!("{}", result));
+                })
+        });
+        return;
+    }
+
     let bitcoin_address: BitcoinAddress = rayon_pool.install(|| {
         rayon::iter::repeat(BitcoinAddress::new)
             .inspect(|_| progress.inc(1))
@@ -55,14 +72,16 @@ fn main() {
     let attempts = progress.position();
     progress.finish_and_clear();
 
-    let result = json!({
+    print!("{}", address_json(&bitcoin_address, attempts));
+}
+
+fn address_json(bitcoin_address: &BitcoinAddress, attempts: u64) -> serde_json::Value {
+    json!({
         "private_key": bitcoin_address.private_key.to_string(),
         "public_key": bitcoin_address.public_key.to_string(),
         "address": bitcoin_address.address.to_string(),
         "attempts": attempts
-    });
-
-    print!("{}", result);
+    })
 }
 
 fn get_prefixes_from_file(file_name: &str) -> Vec<String> {

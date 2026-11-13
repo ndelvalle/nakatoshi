@@ -1,8 +1,6 @@
-use bitcoin::network::constants::Network;
 use bitcoin::secp256k1;
 use bitcoin::secp256k1::{Secp256k1, SecretKey, Signing};
-use bitcoin::util::address::Address;
-use bitcoin::util::key::{PrivateKey, PublicKey};
+use bitcoin::{Address, CompressedPublicKey, Network, NetworkKind, PrivateKey, PublicKey};
 
 pub struct BitcoinAddress {
     pub private_key: PrivateKey,
@@ -18,17 +16,18 @@ impl BitcoinAddress {
 
         let private_key = PrivateKey {
             compressed: is_compressed,
-            network: Network::Bitcoin,
+            network: NetworkKind::Main,
             inner: secret_key,
         };
 
         let public_key = PublicKey::from_private_key(secp, &private_key);
 
         let address: Address = if is_bech32 {
-            Address::p2wpkh(&public_key, Network::Bitcoin)
-                .expect("Failed to create Bitcoin bech32 address")
+            let compressed = CompressedPublicKey::try_from(public_key)
+                .expect("Failed to create Bitcoin bech32 address");
+            Address::p2wpkh(&compressed, Network::Bitcoin)
         } else {
-            Address::p2pkh(&public_key, Network::Bitcoin)
+            Address::p2pkh(public_key, Network::Bitcoin)
         };
 
         Self {
@@ -61,6 +60,6 @@ impl BitcoinAddress {
 
 fn get_random_bytes() -> [u8; secp256k1::constants::SECRET_KEY_SIZE] {
     let mut buf = [0u8; secp256k1::constants::SECRET_KEY_SIZE];
-    getrandom::getrandom(&mut buf).expect("Failed to create random bytes");
+    getrandom::fill(&mut buf).expect("Failed to create random bytes");
     buf
 }

@@ -33,11 +33,17 @@ pub fn prompt() -> clap::Command {
         )
         .arg(
             clap::Arg::new("bech32")
-                .conflicts_with("case-sensitive")
                 .short('b')
                 .long("bech32")
                 .action(clap::ArgAction::SetTrue)
                 .help("Use Bech32 addresses. Starting with bc1q (Lowercase address)"),
+        )
+        .arg(
+            clap::Arg::new("keep-going")
+                .short('k')
+                .long("keep-going")
+                .action(clap::ArgAction::SetTrue)
+                .help("Don't stop at the first match, print every match and keep searching"),
         )
         .arg(
             clap::Arg::new("uncompressed")
