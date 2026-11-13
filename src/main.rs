@@ -12,9 +12,6 @@ mod cli;
 
 use address::{BitcoinAddress, KeyWalker, PrefixMatcher};
 
-// How many attempts a thread makes before it reports them.
-const PROGRESS_BATCH_SIZE: u64 = 1024;
-
 fn main() {
     let matches = cli::prompt().get_matches();
     let secp = Secp256k1::new();
@@ -56,36 +53,37 @@ fn main() {
     let found: Mutex<Option<(BitcoinAddress, u64)>> = Mutex::new(None);
 
     rayon_pool.broadcast(|_| {
-        let mut keys = KeyWalker::new(&secp);
-        let mut attempts = 0;
+        let mut keys = KeyWalker::new(&secp, is_compressed);
 
-        loop {
-            if attempts == PROGRESS_BATCH_SIZE {
-                progress.inc(attempts);
-                attempts = 0;
-                if is_found.load(Ordering::Relaxed) {
-                    return;
+        while !is_found.load(Ordering::Relaxed) {
+            let batch_len = keys.next_batch(&secp);
+            let mut attempts = 0;
+            let mut matched = None;
+
+            'batch: for index in 0..batch_len {
+                for pubkey_hash in keys.pubkey_hashes(index) {
+                    attempts += 1;
+                    if matcher.matches(&pubkey_hash) {
+                        matched = Some(index);
+                        break 'batch;
+                    }
                 }
             }
-            attempts += 1;
-
-            if !matcher.matches(&keys.pubkey_hash(is_compressed)) {
-                keys.advance(&secp);
-                continue;
-            }
-
-            let secret_key = keys.secret_key();
-            // Consecutive keys are related, so don't hand out more than one of them.
-            keys = KeyWalker::new(&secp);
-
-            let address =
-                BitcoinAddress::from_secret_key(&secp, secret_key, is_compressed, is_bech32);
-            if !address.starts_with_any(&prefixes, is_case_sensitive) {
-                continue;
-            }
-
             progress.inc(attempts);
-            attempts = 0;
+
+            let Some(index) = matched else { continue };
+            let secret_keys = keys.secret_keys(index);
+            // Consecutive keys are related, so don't hand out more than one of them.
+            keys.restart(&secp);
+
+            let address = secret_keys
+                .into_iter()
+                .map(|secret_key| {
+                    BitcoinAddress::from_secret_key(&secp, secret_key, is_compressed, is_bech32)
+                })
+                .find(|address| address.starts_with_any(&prefixes, is_case_sensitive));
+            let Some(address) = address else { continue };
+
             if is_keep_going {
                 let result = address_json(&address, progress.position());
                 progress.suspend(|| println!("{}", result));
@@ -95,7 +93,6 @@ fn main() {
                     *found = Some((address, progress.position()));
                 }
                 is_found.store(true, Ordering::Relaxed);
-                return;
             }
         }
     });
@@ -203,34 +200,62 @@ mod tests {
     #[test]
     fn walked_keys_match_their_secret_key() {
         let secp = Secp256k1::new();
-        let mut keys = KeyWalker::new(&secp);
 
-        for _ in 0..100 {
-            for is_compressed in [true, false] {
-                let address =
-                    BitcoinAddress::from_secret_key(&secp, keys.secret_key(), is_compressed, false);
-                assert_eq!(
-                    address.public_key.pubkey_hash().to_byte_array(),
-                    keys.pubkey_hash(is_compressed)
-                );
+        for is_compressed in [true, false] {
+            let mut keys = KeyWalker::new(&secp, is_compressed);
+            let mut seen = std::collections::HashSet::new();
+
+            for batch in 0..6 {
+                if batch == 3 {
+                    keys.restart(&secp);
+                }
+                let batch_len = keys.next_batch(&secp);
+                for index in 0..batch_len {
+                    let mut expected: Vec<[u8; 20]> = keys
+                        .secret_keys(index)
+                        .into_iter()
+                        .map(|secret_key| {
+                            BitcoinAddress::from_secret_key(&secp, secret_key, is_compressed, false)
+                                .public_key
+                                .pubkey_hash()
+                                .to_byte_array()
+                        })
+                        .collect();
+                    let mut hashes = keys.pubkey_hashes(index).to_vec();
+                    expected.sort();
+                    hashes.sort();
+                    assert_eq!(hashes, expected);
+                    // No key is tried twice.
+                    assert!(hashes.into_iter().all(|hash| seen.insert(hash)));
+                }
             }
-            keys.advance(&secp);
         }
     }
 
     #[test]
     fn matcher_agrees_with_address() {
         let secp = Secp256k1::new();
-        let mut keys = KeyWalker::new(&secp);
+        let mut keys = KeyWalker::new(&secp, true);
+        keys.next_batch(&secp);
 
-        for _ in 0..100 {
-            for (is_bech32, is_case_sensitive, len) in
-                [(true, false, 7), (true, false, 36), (false, true, 4), (false, false, 4)]
-            {
-                let address =
-                    BitcoinAddress::from_secret_key(&secp, keys.secret_key(), true, is_bech32);
+        for index in 0..200 {
+            for (is_bech32, is_case_sensitive, len) in [
+                (true, false, 3),
+                (true, false, 7),
+                (true, false, 36),
+                (false, true, 1),
+                (false, true, 4),
+                (false, false, 4),
+                (false, false, 9),
+                (false, true, 34),
+                // Too many variants, this uses the slow matcher.
+                (false, false, 30),
+            ] {
+                let secret_key = keys.secret_keys(index)[0];
+                let address = BitcoinAddress::from_secret_key(&secp, secret_key, true, is_bech32);
+                let hash = address.public_key.pubkey_hash().to_byte_array();
                 let address = address.address.to_string();
-                let hash = keys.pubkey_hash(true);
+                let len = len.min(address.len());
 
                 let prefix = if is_case_sensitive {
                     address[..len].to_string()
@@ -241,12 +266,50 @@ mod tests {
                 assert!(matcher.matches(&hash));
 
                 // Change the last character of the prefix, it should not match anymore.
+                // The end of a Base58 address is the checksum, which the matcher
+                // does not look at.
+                if len < 4 || (!is_bech32 && len > 20) {
+                    continue;
+                }
                 let last = if address[len - 1..len].eq_ignore_ascii_case("q") { "p" } else { "q" };
                 let prefix = format!("{}{}", &address[..len - 1], last);
                 let matcher = PrefixMatcher::new(&[prefix], is_case_sensitive, is_bech32);
                 assert!(!matcher.matches(&hash));
             }
-            keys.advance(&secp);
+        }
+    }
+
+    #[test]
+    fn base58_ranges_agree_with_slow_matcher() {
+        let secp = Secp256k1::new();
+        let mut keys = KeyWalker::new(&secp, true);
+        let batch_len = keys.next_batch(&secp);
+
+        // Short prefixes, so a lot of the addresses match.
+        let prefixes = ["1", "11", "1a", "1B", "1c2", "12", "1Q", "1z", "2", "1l", "1O"];
+        for is_case_sensitive in [true, false] {
+            let mut matches = 0;
+            for prefix in prefixes {
+                let prefixes = [prefix.to_string()];
+                let matcher = PrefixMatcher::new(&prefixes, is_case_sensitive, false);
+                assert!(matches!(matcher, PrefixMatcher::Base58(_)));
+
+                for index in 0..batch_len {
+                    for hash in keys.pubkey_hashes(index) {
+                        let mut payload = [0u8; 21];
+                        payload[1..].copy_from_slice(&hash);
+                        let address = bitcoin::base58::encode_check(&payload);
+                        let expected = if is_case_sensitive {
+                            address.starts_with(prefix)
+                        } else {
+                            address.to_lowercase().starts_with(&prefix.to_lowercase())
+                        };
+                        assert_eq!(matcher.matches(&hash), expected, "{} {}", prefix, address);
+                        matches += usize::from(expected);
+                    }
+                }
+            }
+            assert!(matches > batch_len);
         }
     }
 }
