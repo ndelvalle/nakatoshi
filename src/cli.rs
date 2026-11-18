@@ -39,6 +39,15 @@ pub fn prompt() -> clap::Command {
                 .help("Use Bech32 addresses. Starting with bc1q (Lowercase address)"),
         )
         .arg(
+            clap::Arg::new("taproot")
+                .short('r')
+                .long("taproot")
+                .visible_alias("p2tr")
+                .action(clap::ArgAction::SetTrue)
+                .conflicts_with_all(["bech32", "uncompressed"])
+                .help("Use Taproot addresses. Starting with bc1p (Lowercase address)"),
+        )
+        .arg(
             clap::Arg::new("keep-going")
                 .short('k')
                 .long("keep-going")
