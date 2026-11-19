@@ -43,6 +43,27 @@ fn main() {
             get_prefixes_from_file(file_name)
         }
     };
+    if prefixes.is_empty() {
+        exit_with_error("The input file has no prefixes");
+    }
+
+    let matcher = PrefixMatcher::new(&prefixes, is_case_sensitive, address_type);
+    if matcher.is_empty() {
+        let subject = match prefixes.as_slice() {
+            [prefix] => format!("\"{prefix}\""),
+            _ => "any of the prefixes".to_owned(),
+        };
+        let format = match address_type {
+            AddressType::Legacy => "Legacy addresses start with 1, and have no 0, O, I or l",
+            AddressType::Bech32 => {
+                "Bech32 addresses start with bc1q, and have no 1, b, i or o after that"
+            }
+            AddressType::Taproot => {
+                "Taproot addresses start with bc1p, and have no 1, b, i or o after that"
+            }
+        };
+        exit_with_error(format!("No address starts with {subject}. {format}"));
+    }
 
     let rayon_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
@@ -56,7 +77,6 @@ fn main() {
     progress.set_style(template);
     // progress.set_draw_rate(10);
 
-    let matcher = PrefixMatcher::new(&prefixes, is_case_sensitive, address_type);
     let is_found = AtomicBool::new(false);
     let found: Mutex<Option<(BitcoinAddress, u64)>> = Mutex::new(None);
 
@@ -138,10 +158,19 @@ fn get_prefixes_from_file(file_name: &str) -> Vec<String> {
     let mut prefixes = buffer
         .lines()
         .map(|line| line.expect("Failed to read Bitcoin address pattern from input file"))
+        .map(|line| line.trim().to_owned())
+        .filter(|line| !line.is_empty())
         .collect::<Vec<String>>();
 
     prefixes.sort_by_key(|a| a.len());
     prefixes
+}
+
+/// Prints an error the way the argument parser does, and exits.
+fn exit_with_error(message: impl std::fmt::Display) -> ! {
+    cli::prompt()
+        .error(clap::error::ErrorKind::ValueValidation, message)
+        .exit()
 }
 
 #[cfg(test)]
@@ -427,5 +456,34 @@ mod tests {
             }
             assert!(matches > batch_len);
         }
+    }
+
+    #[test]
+    fn matcher_is_empty_for_impossible_prefixes() {
+        let is_empty = |prefix: &str, is_case_sensitive: bool, address_type: AddressType| {
+            PrefixMatcher::new(&[prefix.to_string()], is_case_sensitive, address_type).is_empty()
+        };
+
+        assert!(!is_empty("1Kids", false, AddressType::Legacy));
+        assert!(!is_empty("1Kids", true, AddressType::Legacy));
+        // Legacy addresses start with 1.
+        assert!(is_empty("Kids", false, AddressType::Legacy));
+        assert!(is_empty("bc1qkd", false, AddressType::Legacy));
+        // A lowercase l is not in Base58, an uppercase L is.
+        assert!(is_empty("1Nicol", true, AddressType::Legacy));
+        assert!(!is_empty("1Nicol", false, AddressType::Legacy));
+        assert!(is_empty("1O0", false, AddressType::Legacy));
+
+        assert!(!is_empty("bc1qkd", false, AddressType::Bech32));
+        assert!(!is_empty("BC1QKD", false, AddressType::Bech32));
+        assert!(!is_empty("bc", false, AddressType::Bech32));
+        // The letter b is not in Bech32.
+        assert!(is_empty("bc1qkb", false, AddressType::Bech32));
+        assert!(is_empty("bc1pkd", false, AddressType::Bech32));
+        assert!(is_empty("1Kids", false, AddressType::Bech32));
+
+        assert!(!is_empty("bc1pkd", false, AddressType::Taproot));
+        assert!(is_empty("bc1pko", false, AddressType::Taproot));
+        assert!(is_empty("bc1qkd", false, AddressType::Taproot));
     }
 }

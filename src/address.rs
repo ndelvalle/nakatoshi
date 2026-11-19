@@ -722,6 +722,17 @@ impl PrefixMatcher {
             head & prefix.mask.0 == prefix.bits.0 && tail & prefix.mask.1 == prefix.bits.1
         })
     }
+
+    /// Returns true if there is no address that starts with any of the
+    /// prefixes. The slow matcher can't tell, so it is never empty.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Bech32(prefixes) => prefixes.is_empty(),
+            Self::Taproot(prefixes) => prefixes.is_empty(),
+            Self::Base58(ranges) => ranges.is_empty(),
+            Self::Base58Slow { .. } => false,
+        }
+    }
 }
 
 impl Bech32Prefix {
@@ -882,7 +893,7 @@ fn base58_ranges(prefix: &[u8], ranges: &mut Vec<Base58Range>) {
     for len in digits.len()..=BASE58_MAX_ADDRESS_LEN {
         let number = |fill: u8| {
             let mut number = [0u8; BASE58_PAYLOAD_LEN];
-            let fill = std::iter::repeat(fill).take(len - digits.len());
+            let fill = std::iter::repeat_n(fill, len - digits.len());
             for digit in digits.iter().copied().chain(fill) {
                 let mut carry = u32::from(digit);
                 for byte in number.iter_mut().rev() {

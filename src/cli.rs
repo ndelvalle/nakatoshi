@@ -36,6 +36,7 @@ pub fn prompt() -> clap::Command {
                 .short('b')
                 .long("bech32")
                 .action(clap::ArgAction::SetTrue)
+                .conflicts_with("uncompressed")
                 .help("Use Bech32 addresses. Starting with bc1q (Lowercase address)"),
         )
         .arg(
@@ -59,6 +60,6 @@ pub fn prompt() -> clap::Command {
                 .short('u')
                 .long("uncompressed")
                 .action(clap::ArgAction::SetTrue)
-                .help("Use uncompressed private an public keys"),
+                .help("Use uncompressed private and public keys"),
         )
 }
