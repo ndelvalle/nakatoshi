@@ -3,6 +3,7 @@ name = "nakatoshi"
 version = "0.2.8"
 authors = ["ndelvalle <nicolas.delvalle@gmail.com>"]
 edition = "2024"
+rust-version = "1.88"
 description = "Bitcoin vanity address generator"
 license = "MIT"
 readme = "README.md"
@@ -13,16 +14,13 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 bitcoin = "0.32.102"
-clap = "4.5.0"
-time = "0.3.30"
+clap = "4.6.8"
 rayon = "1.12.0"
 getrandom = "0.4.3"
-serde = "1.0.185"
-serde_json = "1.0.109"
-spinners = "4.1.0"
-num_cpus = "1.16.0"
+serde_json = "1.0.154"
+num_cpus = "1.17.0"
 indicatif = "0.18.6"
-k256 = { version = "0.13", default-features = false, features = ["arithmetic", "expose-field"] }
+k256 = { version = "0.14.0", default-features = false, features = ["arithmetic"] }
 
 [profile.release]
 lto = true

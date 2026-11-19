@@ -5,7 +5,11 @@ use bitcoin::secp256k1;
 use bitcoin::secp256k1::{Scalar, Secp256k1, SecretKey, Signing, Verification};
 use bitcoin::taproot::TapTweakHash;
 use bitcoin::{Address, CompressedPublicKey, Network, NetworkKind, PrivateKey, PublicKey};
-use k256::{FieldBytes, FieldElement};
+use k256::FieldBytes;
+use k256::elliptic_curve::hazmat::FieldArithmetic;
+
+// The field of secp256k1, which k256 only exposes through this trait.
+type FieldElement = <k256::Secp256k1 as FieldArithmetic>::FieldElement;
 
 const BECH32_CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 const BECH32_PREFIX: &[u8; 4] = b"bc1q";
