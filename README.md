@@ -44,6 +44,7 @@ FLAGS:
     -b, --bech32            Use Bech32 addresses. Starting with bc1q (Lowercase address)
     -c, --case-sensitive    Use case sensitive comparison to match addresses
     -h, --help              Prints help information
+    -r, --taproot           Use Taproot addresses. Starting with bc1p (Lowercase address) [aliases: p2tr]
     -u, --uncompressed      Use uncompressed private an public keys
     -V, --version           Prints version information
 
@@ -96,6 +97,18 @@ nakatoshi -b bc1qki
 
 Note: There is no need to search with the `case-sensitive` flag because `bc1q` addresses are
 always lowercase.
+
+#### Taproot addresses
+
+```shell
+nakatoshi -r bc1pki
+```
+
+The address can only be spent with the private key, there are no scripts in it ([BIP 86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)).
+It is the address of the `tr(<private_key>)` descriptor.
+
+Note: Searching for a Taproot address is a lot slower than for the other address types, as
+every attempt takes a lot more work.
 
 ## Development
 
