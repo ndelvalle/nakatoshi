@@ -4,32 +4,25 @@ on:
   push:
     branches:
       - '*'
+  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   rust-integration-jobs:
     name: rust-integration-jobs
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust:
-          - stable
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v1
-      
+        uses: actions/checkout@v7
+
       - name: Install toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
-          override: true
+          components: rustfmt, clippy
 
-      - name: Install rustfmt
-        run: rustup component add rustfmt
-
-      - name: Install clippy
-        run: rustup component add clippy
-
-      - uses: actions/cache@v2
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -38,23 +31,13 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
+        run: cargo check
 
       - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
+        run: cargo test

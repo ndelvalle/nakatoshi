@@ -23,38 +23,37 @@ $ brew install nakatoshi
 $ cargo install nakatoshi
 ```
 
+Requires Rust 1.88 or newer.
+
 ### Manually
 
 Download the latest [released binary](https://github.com/ndelvalle/nakatoshi/releases)
-and add executable permissions:
+and extract it:
 
 ```bash
 # Linux example:
-$ wget -O nakatoshi "https://github.com/ndelvalle/nakatoshi/releases/download/v0.2.4/nakatoshi-linux-amd64"
-$ chmod +x nakatoshi
+$ wget "https://github.com/ndelvalle/nakatoshi/releases/latest/download/nakatoshi-linux-amd64.tar.gz"
+$ tar -xzf nakatoshi-linux-amd64.tar.gz
 ```
 
 ## CLI
 
 ```
-USAGE:
-    nakatoshi [FLAGS] [OPTIONS] <prefix> --input-file <input-file>
+Usage: nakatoshi [OPTIONS] [prefix]
 
-FLAGS:
-    -b, --bech32            Use Bech32 addresses. Starting with bc1q (Lowercase address)
-    -c, --case-sensitive    Use case sensitive comparison to match addresses
-    -h, --help              Prints help information
-    -r, --taproot           Use Taproot addresses. Starting with bc1p (Lowercase address) [aliases: p2tr]
-    -u, --uncompressed      Use uncompressed private an public keys
-    -V, --version           Prints version information
+Arguments:
+  [prefix]  Prefix used to match addresses
 
-OPTIONS:
-    -i, --input-file <input-file>    File with prefixes to match addresses with
-    -t, --threads <threads>          Number of threads to be used [default: The number of CPUs available on the current
-                                     system]
-
-ARGS:
-    <prefix>    Prefix used to match addresses
+Options:
+  -i, --input-file <input-file>  File with prefixes to match addresses with
+  -t, --threads <threads>        Number of threads to be used [default: "The number of CPUs available on the current system"]
+  -c, --case-sensitive           Use case sensitive comparison to match addresses
+  -b, --bech32                   Use Bech32 addresses. Starting with bc1q (Lowercase address)
+  -r, --taproot                  Use Taproot addresses. Starting with bc1p (Lowercase address) [alias: --p2tr]
+  -k, --keep-going               Don't stop at the first match, print every match and keep searching
+  -u, --uncompressed             Use uncompressed private and public keys
+  -h, --help                     Print help
+  -V, --version                  Print version
 ```
 
 
@@ -89,6 +88,14 @@ The contents of the `input.txt` file looks like this:
 1Love
 ```
 
+#### Keep searching after the first match
+
+```shell
+nakatoshi --keep-going 1Kids
+```
+
+Every match is printed as a line of JSON, until the search is stopped with `Ctrl+C`.
+
 #### Bech32 addresses
 
 ```shell
@@ -117,7 +124,12 @@ every attempt takes a lot more work.
 $ cargo build
 
 # Help
-$ cargo run -- -help
+$ cargo run -- --help
+
+# Checks that run in CI
+$ cargo fmt --all -- --check
+$ cargo clippy -- -D warnings
+$ cargo test
 ```
 
 Note: `Cargo run` creates an unoptimized executable with debug info. When testing

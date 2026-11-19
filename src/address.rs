@@ -1,11 +1,15 @@
 use std::sync::OnceLock;
 
-use bitcoin::hashes::{hash160, Hash, HashEngine};
+use bitcoin::hashes::{Hash, HashEngine, hash160};
 use bitcoin::secp256k1;
 use bitcoin::secp256k1::{Scalar, Secp256k1, SecretKey, Signing, Verification};
 use bitcoin::taproot::TapTweakHash;
 use bitcoin::{Address, CompressedPublicKey, Network, NetworkKind, PrivateKey, PublicKey};
-use k256::{FieldBytes, FieldElement};
+use k256::FieldBytes;
+use k256::elliptic_curve::hazmat::FieldArithmetic;
+
+// The field of secp256k1, which k256 only exposes through this trait.
+type FieldElement = <k256::Secp256k1 as FieldArithmetic>::FieldElement;
 
 const BECH32_CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 const BECH32_PREFIX: &[u8; 4] = b"bc1q";
@@ -134,7 +138,9 @@ impl Point {
 }
 
 fn field_element(bytes: &[u8]) -> FieldElement {
-    let bytes: [u8; 32] = bytes.try_into().expect("Failed to create Bitcoin public key");
+    let bytes: [u8; 32] = bytes
+        .try_into()
+        .expect("Failed to create Bitcoin public key");
     Option::<FieldElement>::from(FieldElement::from_bytes(&FieldBytes::from(bytes)))
         .expect("Failed to create Bitcoin public key")
 }
@@ -199,7 +205,9 @@ impl TweakMultiples {
                 one[31 - bit / 8] = 1 << (bit % 8);
                 let one = SecretKey::from_slice(&one).expect("Failed to create Bitcoin secret key");
                 let one = secp256k1::PublicKey::from_secret_key(secp, &one);
-                let two = one.combine(&one).expect("Failed to create Bitcoin public key");
+                let two = one
+                    .combine(&one)
+                    .expect("Failed to create Bitcoin public key");
 
                 // There is no point to add for a value of zero, so these are
                 // the multiples for the values plus one.
@@ -297,7 +305,13 @@ impl OutputKeys {
     fn new(secp: &Secp256k1<impl Signing>) -> Self {
         Self {
             multiples: TweakMultiples::get(secp),
-            points: vec![Point { x: FieldElement::ZERO, y: FieldElement::ZERO }; BATCH_SIZE],
+            points: vec![
+                Point {
+                    x: FieldElement::ZERO,
+                    y: FieldElement::ZERO
+                };
+                BATCH_SIZE
+            ],
             tweaks: vec![[0u32; TWEAK_WINDOWS]; BATCH_SIZE],
             products: Vec::with_capacity(BATCH_SIZE),
         }
@@ -307,7 +321,10 @@ impl OutputKeys {
     /// `y`. Returns false in the practically impossible case that this can't
     /// be done for one of them.
     fn calculate(&mut self, public_keys: &[[u8; 64]]) -> bool {
-        let keys = public_keys.iter().zip(&mut self.points).zip(&mut self.tweaks);
+        let keys = public_keys
+            .iter()
+            .zip(&mut self.points)
+            .zip(&mut self.tweaks);
         for ((public_key, point), tweak) in keys {
             // Taproot only uses the `x` of a public key, the `y` is always
             // the even one.
@@ -393,7 +410,10 @@ impl KeyWalker {
             multiples: GeneratorMultiples::get(secp),
             base: random_secret_key(),
             center_offset: 0,
-            next_center: Point { x: FieldElement::ZERO, y: FieldElement::ZERO },
+            next_center: Point {
+                x: FieldElement::ZERO,
+                y: FieldElement::ZERO,
+            },
             next_center_offset: 0,
             points: vec![[0u8; 64]; BATCH_SIZE],
             deltas: vec![FieldElement::ZERO; HALF_BATCH_SIZE + 1],
@@ -542,7 +562,10 @@ impl KeyWalker {
     /// The output key of a point in the current batch, this is what a Taproot
     /// address encodes. It is the same one for both secret keys of the point.
     pub fn output_key(&self, index: usize) -> [u8; 32] {
-        let output_keys = self.output_keys.as_ref().expect("Failed to create Bitcoin output key");
+        let output_keys = self
+            .output_keys
+            .as_ref()
+            .expect("Failed to create Bitcoin output key");
         // This is the only place that needs it fully normalized.
         output_keys.points[index].x.normalize().to_bytes().into()
     }
@@ -579,7 +602,10 @@ pub enum PrefixMatcher {
     Taproot(Vec<TaprootPrefix>),
     Base58(Vec<Base58Range>),
     // Fallback for when there would be too many ranges.
-    Base58Slow { prefixes: Vec<Vec<u8>>, is_case_sensitive: bool },
+    Base58Slow {
+        prefixes: Vec<Vec<u8>>,
+        is_case_sensitive: bool,
+    },
 }
 
 /// The bits of a public key hash that are set by a Bech32 prefix.
@@ -611,11 +637,15 @@ impl PrefixMatcher {
         match address_type {
             AddressType::Legacy => {}
             AddressType::Bech32 => {
-                let prefixes = prefixes.iter().filter_map(|prefix| Bech32Prefix::new(prefix));
+                let prefixes = prefixes
+                    .iter()
+                    .filter_map(|prefix| Bech32Prefix::new(prefix));
                 return Self::Bech32(prefixes.collect());
             }
             AddressType::Taproot => {
-                let prefixes = prefixes.iter().filter_map(|prefix| TaprootPrefix::new(prefix));
+                let prefixes = prefixes
+                    .iter()
+                    .filter_map(|prefix| TaprootPrefix::new(prefix));
                 return Self::Taproot(prefixes.collect());
             }
         }
@@ -630,7 +660,10 @@ impl PrefixMatcher {
                         prefix.to_lowercase().into_bytes()
                     }
                 });
-                return Self::Base58Slow { prefixes: prefixes.collect(), is_case_sensitive };
+                return Self::Base58Slow {
+                    prefixes: prefixes.collect(),
+                    is_case_sensitive,
+                };
             }
         }
 
@@ -667,7 +700,10 @@ impl PrefixMatcher {
                 let index = ranges.partition_point(|range| range.first <= *pubkey_hash);
                 index > 0 && *pubkey_hash <= ranges[index - 1].last
             }
-            Self::Base58Slow { prefixes, is_case_sensitive } => {
+            Self::Base58Slow {
+                prefixes,
+                is_case_sensitive,
+            } => {
                 let mut payload = [0u8; 21];
                 payload[1..].copy_from_slice(pubkey_hash);
                 let mut address = bitcoin::base58::encode_check(&payload).into_bytes();
@@ -690,6 +726,17 @@ impl PrefixMatcher {
             head & prefix.mask.0 == prefix.bits.0 && tail & prefix.mask.1 == prefix.bits.1
         })
     }
+
+    /// Returns true if there is no address that starts with any of the
+    /// prefixes. The slow matcher can't tell, so it is never empty.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Bech32(prefixes) => prefixes.is_empty(),
+            Self::Taproot(prefixes) => prefixes.is_empty(),
+            Self::Base58(ranges) => ranges.is_empty(),
+            Self::Base58Slow { .. } => false,
+        }
+    }
 }
 
 impl Bech32Prefix {
@@ -702,7 +749,10 @@ impl Bech32Prefix {
             let tail = u32::from_be_bytes(bytes[16..].try_into().unwrap());
             (head, tail)
         };
-        Some(Self { mask: split(mask), bits: split(bits) })
+        Some(Self {
+            mask: split(mask),
+            bits: split(bits),
+        })
     }
 }
 
@@ -716,7 +766,10 @@ impl TaprootPrefix {
             let tail = u128::from_be_bytes(bytes[16..].try_into().unwrap());
             (head, tail)
         };
-        Some(Self { mask: split(mask), bits: split(bits) })
+        Some(Self {
+            mask: split(mask),
+            bits: split(bits),
+        })
     }
 }
 
@@ -773,7 +826,10 @@ fn base58_variants(prefix: &[u8], is_case_sensitive: bool, variants: &mut Vec<Ve
     for character in prefix {
         let mut options = vec![*character];
         if !is_case_sensitive {
-            options = vec![character.to_ascii_lowercase(), character.to_ascii_uppercase()];
+            options = vec![
+                character.to_ascii_lowercase(),
+                character.to_ascii_uppercase(),
+            ];
             options.dedup();
         }
         options.retain(|option| BASE58_CHARSET.contains(option));
@@ -800,7 +856,10 @@ fn base58_variants(prefix: &[u8], is_case_sensitive: bool, variants: &mut Vec<Ve
 fn base58_ranges(prefix: &[u8], ranges: &mut Vec<Base58Range>) {
     // Every leading '1' of an address is a leading zero byte of the payload,
     // the rest of the address is the rest of the payload as a number.
-    let zeros = prefix.iter().take_while(|character| **character == b'1').count();
+    let zeros = prefix
+        .iter()
+        .take_while(|character| **character == b'1')
+        .count();
     // The first byte of the payload is the version, which is zero.
     if zeros == 0 || zeros > BASE58_PAYLOAD_LEN {
         return;
@@ -838,7 +897,7 @@ fn base58_ranges(prefix: &[u8], ranges: &mut Vec<Base58Range>) {
     for len in digits.len()..=BASE58_MAX_ADDRESS_LEN {
         let number = |fill: u8| {
             let mut number = [0u8; BASE58_PAYLOAD_LEN];
-            let fill = std::iter::repeat(fill).take(len - digits.len());
+            let fill = std::iter::repeat_n(fill, len - digits.len());
             for digit in digits.iter().copied().chain(fill) {
                 let mut carry = u32::from(digit);
                 for byte in number.iter_mut().rev() {
