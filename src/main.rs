@@ -4,8 +4,8 @@ use serde_json::json;
 use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod address;
 mod cli;
@@ -349,7 +349,11 @@ mod tests {
                 if len < 4 || (is_legacy && len > 20) {
                     continue;
                 }
-                let last = if address[len - 1..len].eq_ignore_ascii_case("q") { "p" } else { "q" };
+                let last = if address[len - 1..len].eq_ignore_ascii_case("q") {
+                    "p"
+                } else {
+                    "q"
+                };
                 let prefix = format!("{}{}", &address[..len - 1], last);
                 assert!(!matches(prefix));
             }
@@ -363,7 +367,9 @@ mod tests {
         let batch_len = keys.next_batch(&secp);
 
         // Short prefixes, so a lot of the addresses match.
-        let prefixes = ["bc1p", "bc1pq", "BC1P5", "bc1pl", "bc1pqq", "bc1q", "bc1pb", "1"];
+        let prefixes = [
+            "bc1p", "bc1pq", "BC1P5", "bc1pl", "bc1pqq", "bc1q", "bc1pb", "1",
+        ];
         let mut matches = 0;
         for prefix in prefixes {
             let matcher = PrefixMatcher::new(&[prefix.to_string()], false, AddressType::Taproot);
@@ -374,7 +380,12 @@ mod tests {
                 let address =
                     BitcoinAddress::from_secret_key(&secp, secret_key, true, address_type);
                 let expected = address.starts_with(prefix, false);
-                assert_eq!(matcher.matches_output_key(&output_key), expected, "{}", prefix);
+                assert_eq!(
+                    matcher.matches_output_key(&output_key),
+                    expected,
+                    "{}",
+                    prefix
+                );
                 matches += usize::from(expected);
             }
         }
@@ -388,7 +399,9 @@ mod tests {
         let batch_len = keys.next_batch(&secp);
 
         // Short prefixes, so a lot of the addresses match.
-        let prefixes = ["1", "11", "1a", "1B", "1c2", "12", "1Q", "1z", "2", "1l", "1O"];
+        let prefixes = [
+            "1", "11", "1a", "1B", "1c2", "12", "1Q", "1z", "2", "1l", "1O",
+        ];
         for is_case_sensitive in [true, false] {
             let mut matches = 0;
             for prefix in prefixes {
