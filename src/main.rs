@@ -1,7 +1,6 @@
 use bitcoin::secp256k1::Secp256k1;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde_json::json;
-use std::fs;
 use std::num::NonZeroUsize;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -34,16 +33,11 @@ fn main() {
         .get_one::<NonZeroUsize>("threads")
         .map_or_else(num_cpus::get, |num_threads| num_threads.get());
 
-    let prefixes = match matches.get_one::<String>("prefix") {
-        Some(prefix) => vec![prefix.to_owned()],
-        None => {
-            let file_name = matches.get_one::<String>("input-file").unwrap();
-            get_prefixes_from_file(file_name)
-        }
-    };
-    if prefixes.is_empty() {
-        exit_with_error("The input file has no prefixes");
-    }
+    let prefixes: Vec<String> = matches
+        .get_many::<String>("prefix")
+        .unwrap_or_default()
+        .cloned()
+        .collect();
 
     let matcher = PrefixMatcher::new(&prefixes, is_case_sensitive, address_type);
     let matcher = matcher.unwrap_or_else(|_| {
@@ -158,20 +152,6 @@ fn address_json(bitcoin_address: &BitcoinAddress, attempts: u64) -> serde_json::
         "address": bitcoin_address.address.to_string(),
         "attempts": attempts
     })
-}
-
-fn get_prefixes_from_file(file_name: &str) -> Vec<String> {
-    let contents = fs::read_to_string(file_name)
-        .unwrap_or_else(|error| exit_with_error(format!("Failed to read {file_name}: {error}")));
-
-    let mut prefixes = contents
-        .lines()
-        .map(|line| line.trim().to_owned())
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<String>>();
-
-    prefixes.sort_by_key(|a| a.len());
-    prefixes
 }
 
 /// Prints an error the way the argument parser does, and exits.

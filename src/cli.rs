@@ -5,15 +5,9 @@ pub fn prompt() -> clap::Command {
         .arg(
             clap::Arg::new("prefix")
                 .index(1)
-                .required_unless_present_any(["input-file"])
-                .help("Prefix used to match addresses"),
-        )
-        .arg(
-            clap::Arg::new("input-file")
-                .short('i')
-                .long("input-file")
-                .required_unless_present_any(["prefix"])
-                .help("File with prefixes to match addresses with"),
+                .required(true)
+                .num_args(1..)
+                .help("Prefixes used to match addresses, any one of them is a match"),
         )
         .arg(
             clap::Arg::new("threads")
