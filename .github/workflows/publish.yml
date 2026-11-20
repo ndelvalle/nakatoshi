@@ -71,28 +71,35 @@ jobs:
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Check the package
-        run: cargo package --locked
-
+      # The archives stay out of the checkout, as cargo only publishes a clean one.
       - uses: actions/download-artifact@v8
         with:
-          path: assets
+          path: ${{ runner.temp }}/assets
           merge-multiple: true
+
+      - name: Check the package
+        run: cargo package --locked
 
       - name: Check that the tag is the version of the package
         if: startsWith(github.ref, 'refs/tags/')
         run: test "v$(grep -m 1 '^version = ' Cargo.toml | cut -d '"' -f 2)" = "$GITHUB_REF_NAME"
 
-      # The package is built by the check above, so that nothing is built
-      # while the token is around.
+      # The release is only created if there is none yet, so that this also
+      # works for a release made by hand, and when it is run again.
+      - name: Create the release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+          gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/assets/*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # This is the one step that can't be undone, so it comes last. The
+      # package is built by the check above, so that nothing is built while
+      # the token is around.
       - name: Publish to crates.io
         if: startsWith(github.ref, 'refs/tags/')
         run: cargo publish --locked --no-verify
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN }}
-
-      - name: Create the release
-        if: startsWith(github.ref, 'refs/tags/')
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes assets/*.tar.gz
-        env:
-          GH_TOKEN: ${{ github.token }}
