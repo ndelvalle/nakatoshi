@@ -8,6 +8,9 @@ nakatoshi accepts as input one or more prefix strings to search for and produce
 a Bitcoin address and private / public keys. The amount of time required to find a given pattern depends
 on how long the string is, the speed of your computer, and whether you get lucky.
 
+nakatoshi searches on the CPU, using all cores by default. GPU-based tools are much faster for
+long prefixes.
+
 ## Install
 
 ### MacOS
