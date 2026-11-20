@@ -4,56 +4,95 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  # This builds everything without publishing it, to check a change to this file.
+  pull_request:
+    paths:
+      - .github/workflows/publish.yml
+
+permissions:
+  contents: read
 
 jobs:
-  publish:
-    name: Publish ${{ matrix.os }}
+  build:
+    name: Build ${{ matrix.asset }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: nakatoshi
-            asset_name: nakatoshi-linux-amd64
+            target: x86_64-unknown-linux-gnu
+            asset: nakatoshi-linux-amd64
           - os: macos-latest
-            artifact_name: nakatoshi
-            asset_name: nakatoshi-macos-amd64
+            target: aarch64-apple-darwin
+            asset: nakatoshi-macos-arm64
+          # The macOS runners are Apple Silicon, so this one is cross-compiled.
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset: nakatoshi-macos-amd64
 
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v1
+        uses: actions/checkout@v7
 
       - name: Install toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          targets: ${{ matrix.target }}
 
       - name: Build
         run: |
-          cargo build --all --release --locked
-          strip target/release/nakatoshi
-          cd target/release && tar -czf nakatoshi.tar.gz nakatoshi
-          mv nakatoshi.tar.gz ${{ matrix.asset_name }}.tar.gz
+          cargo build --release --locked --target ${{ matrix.target }}
+          strip target/${{ matrix.target }}/release/nakatoshi
+          tar -czf ${{ matrix.asset }}.tar.gz -C target/${{ matrix.target }}/release nakatoshi
 
-      - name: Release
-        uses: softprops/action-gh-release@v1
+      - name: Run the binary
+        # The cross-compiled one does not run on the machine that builds it.
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: target/${{ matrix.target }}/release/nakatoshi 1a
+
+      - uses: actions/upload-artifact@v7
         with:
-          files: target/release/${{ matrix.asset_name }}.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}.tar.gz
+          if-no-files-found: error
 
-      - name: Publish package to rust package registry
-        # Push to crates.io only once.
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cargo package
-          cargo publish --token ${{ secrets.CARGO_TOKEN }}
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check the package
+        run: cargo package --locked
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Check that the tag is the version of the package
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "v$(grep -m 1 '^version = ' Cargo.toml | cut -d '"' -f 2)" = "$GITHUB_REF_NAME"
+
+      # The package is built by the check above, so that nothing is built
+      # while the token is around.
+      - name: Publish to crates.io
+        if: startsWith(github.ref, 'refs/tags/')
+        run: cargo publish --locked --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN }}
+
+      - name: Create the release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes assets/*.tar.gz
+        env:
+          GH_TOKEN: ${{ github.token }}
