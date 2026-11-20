@@ -96,6 +96,26 @@ fn keeps_going_after_a_match() {
 }
 
 #[test]
+fn stops_quietly_when_the_matches_are_not_read_anymore() {
+    let mut search = Command::new(env!("CARGO_BIN_EXE_nakatoshi"))
+        .args(["--keep-going", "1a"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let mut stdout = BufReader::new(search.stdout.take().unwrap());
+    let mut line = String::new();
+    stdout.read_line(&mut line).unwrap();
+    assert!(line.contains("\"address\""));
+    drop(stdout);
+
+    let output = search.wait_with_output().unwrap();
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
 fn fails_without_a_prefix() {
     assert!(error(&[]).contains("required arguments were not provided"));
 }
