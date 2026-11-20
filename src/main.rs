@@ -79,7 +79,7 @@ fn main() {
 
     let progress = ProgressBar::new_spinner();
     let template = ProgressStyle::default_bar()
-        .template("[{elapsed_precise}] {pos} attempts")
+        .template("[{elapsed_precise}] {pos} attempts ({per_sec:0})")
         .unwrap();
     progress.set_style(template);
     // progress.set_draw_rate(10);
