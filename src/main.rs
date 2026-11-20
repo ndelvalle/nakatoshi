@@ -1,6 +1,7 @@
 use bitcoin::secp256k1::Secp256k1;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde_json::json;
+use std::io::{self, Write};
 use std::num::NonZeroUsize;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -129,7 +130,12 @@ fn main() {
 
             if is_keep_going {
                 let result = address_json(&address, progress.position());
-                progress.suspend(|| println!("{}", result));
+                let is_printed = progress.suspend(|| writeln!(io::stdout(), "{result}").is_ok());
+                if !is_printed {
+                    // Nobody is reading the matches anymore.
+                    progress.finish_and_clear();
+                    std::process::exit(0);
+                }
             } else {
                 let mut found = found.lock().unwrap();
                 if found.is_none() {
