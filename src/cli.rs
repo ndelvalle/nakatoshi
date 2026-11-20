@@ -19,10 +19,8 @@ pub fn prompt() -> clap::Command {
             clap::Arg::new("threads")
                 .short('t')
                 .long("threads")
-                // This is not the actual default value, it is here to pretty display
-                // the information.
-                .default_value("The number of CPUs available on the current system")
-                .help("Number of threads to be used"),
+                .value_parser(clap::value_parser!(std::num::NonZeroUsize))
+                .help("Number of threads to be used [default: the number of CPUs]"),
         )
         .arg(
             clap::Arg::new("case-sensitive")
