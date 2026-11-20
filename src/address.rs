@@ -24,8 +24,10 @@ const BASE58_CHARSET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijk
 // Version byte, 20 byte hash and 4 byte checksum.
 const BASE58_PAYLOAD_LEN: usize = 25;
 const BASE58_MAX_ADDRESS_LEN: usize = 35;
-// Above this many upper/lowercase variants of the prefixes, the slow matcher is used.
-const BASE58_MAX_VARIANTS: usize = 1 << 16;
+// Every upper/lowercase variant of a prefix has ranges of its own to match,
+// which take about 50 bytes. This is how many variants all the prefixes can
+// have, to keep that within 500 megabytes.
+pub const BASE58_MAX_VARIANTS: usize = 1 << 23;
 
 // A batch has a center key, and this many keys on both sides of it.
 const HALF_BATCH_SIZE: usize = 1024;
@@ -601,12 +603,11 @@ pub enum PrefixMatcher {
     Bech32(Vec<Bech32Prefix>),
     Taproot(Vec<TaprootPrefix>),
     Base58(Vec<Base58Range>),
-    // Fallback for when there would be too many ranges.
-    Base58Slow {
-        prefixes: Vec<Vec<u8>>,
-        is_case_sensitive: bool,
-    },
 }
+
+/// The prefixes have more than `BASE58_MAX_VARIANTS` upper/lowercase variants.
+#[derive(Debug)]
+pub struct TooManyVariants;
 
 /// The bits of a public key hash that are set by a Bech32 prefix.
 pub struct Bech32Prefix {
@@ -633,56 +634,52 @@ pub struct Base58Range {
 }
 
 impl PrefixMatcher {
-    pub fn new(prefixes: &[String], is_case_sensitive: bool, address_type: AddressType) -> Self {
+    pub fn new(
+        prefixes: &[String],
+        is_case_sensitive: bool,
+        address_type: AddressType,
+    ) -> Result<Self, TooManyVariants> {
         match address_type {
             AddressType::Legacy => {}
             AddressType::Bech32 => {
                 let prefixes = prefixes
                     .iter()
                     .filter_map(|prefix| Bech32Prefix::new(prefix));
-                return Self::Bech32(prefixes.collect());
+                return Ok(Self::Bech32(prefixes.collect()));
             }
             AddressType::Taproot => {
                 let prefixes = prefixes
                     .iter()
                     .filter_map(|prefix| TaprootPrefix::new(prefix));
-                return Self::Taproot(prefixes.collect());
+                return Ok(Self::Taproot(prefixes.collect()));
             }
         }
 
-        let mut variants = Vec::new();
-        for prefix in prefixes {
-            if !base58_variants(prefix.as_bytes(), is_case_sensitive, &mut variants) {
-                let prefixes = prefixes.iter().map(|prefix| {
-                    if is_case_sensitive {
-                        prefix.clone().into_bytes()
-                    } else {
-                        prefix.to_lowercase().into_bytes()
-                    }
-                });
-                return Self::Base58Slow {
-                    prefixes: prefixes.collect(),
-                    is_case_sensitive,
-                };
-            }
+        let variants: Vec<Base58Variants> = prefixes
+            .iter()
+            .filter_map(|prefix| Base58Variants::new(prefix.as_bytes(), is_case_sensitive))
+            .collect();
+        let count = variants.iter().try_fold(0usize, |count, variants| {
+            count.checked_add(variants.count()?)
+        });
+        if count.is_none_or(|count| count > BASE58_MAX_VARIANTS) {
+            return Err(TooManyVariants);
         }
 
         let mut ranges = Vec::new();
-        for variant in &variants {
-            base58_ranges(variant, &mut ranges);
+        for variants in variants {
+            variants.add_ranges(&mut ranges);
         }
-        ranges.sort_by_key(|range| range.first);
+        ranges.sort_unstable_by_key(|range| range.first);
         // Merge the ranges that overlap, so there is only one that can match.
-        let mut merged: Vec<Base58Range> = Vec::with_capacity(ranges.len());
-        for range in ranges {
-            match merged.last_mut() {
-                Some(previous) if range.first <= previous.last => {
-                    previous.last = previous.last.max(range.last);
-                }
-                _ => merged.push(range),
+        ranges.dedup_by(|range, previous| {
+            let is_overlapping = range.first <= previous.last;
+            if is_overlapping {
+                previous.last = previous.last.max(range.last);
             }
-        }
-        Self::Base58(merged)
+            is_overlapping
+        });
+        Ok(Self::Base58(ranges))
     }
 
     pub fn matches(&self, pubkey_hash: &[u8; 20]) -> bool {
@@ -700,18 +697,6 @@ impl PrefixMatcher {
                 let index = ranges.partition_point(|range| range.first <= *pubkey_hash);
                 index > 0 && *pubkey_hash <= ranges[index - 1].last
             }
-            Self::Base58Slow {
-                prefixes,
-                is_case_sensitive,
-            } => {
-                let mut payload = [0u8; 21];
-                payload[1..].copy_from_slice(pubkey_hash);
-                let mut address = bitcoin::base58::encode_check(&payload).into_bytes();
-                if !is_case_sensitive {
-                    address.make_ascii_lowercase();
-                }
-                prefixes.iter().any(|prefix| address.starts_with(prefix))
-            }
         }
     }
 
@@ -728,13 +713,12 @@ impl PrefixMatcher {
     }
 
     /// Returns true if there is no address that starts with any of the
-    /// prefixes. The slow matcher can't tell, so it is never empty.
+    /// prefixes.
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Bech32(prefixes) => prefixes.is_empty(),
             Self::Taproot(prefixes) => prefixes.is_empty(),
             Self::Base58(ranges) => ranges.is_empty(),
-            Self::Base58Slow { .. } => false,
         }
     }
 }
@@ -816,44 +800,80 @@ fn bech32_bits<const N: usize>(
     Some((mask, bits))
 }
 
-/// Adds all the ways to write a prefix in Base58 to `variants`, which is more
-/// than one if upper and lowercase don't matter. Returns false if there are
-/// too many of them.
-fn base58_variants(prefix: &[u8], is_case_sensitive: bool, variants: &mut Vec<Vec<u8>>) -> bool {
-    let start = variants.len();
-    variants.push(Vec::with_capacity(prefix.len()));
+/// The ways to write a prefix in Base58, which is more than one way if upper
+/// and lowercase don't matter.
+struct Base58Variants {
+    // One of the variants.
+    variant: Vec<u8>,
+    // The positions of the characters that can be written in two ways.
+    alternatives: Vec<(usize, [u8; 2])>,
+}
 
-    for character in prefix {
-        let mut options = vec![*character];
-        if !is_case_sensitive {
-            options = vec![
-                character.to_ascii_lowercase(),
-                character.to_ascii_uppercase(),
-            ];
-            options.dedup();
-        }
-        options.retain(|option| BASE58_CHARSET.contains(option));
-
-        // With no options left this removes all the variants, as there are no
-        // addresses starting with the prefix.
-        let unfinished = variants.split_off(start);
-        for variant in &unfinished {
-            for option in &options {
-                let mut variant = variant.clone();
-                variant.push(*option);
-                variants.push(variant);
+impl Base58Variants {
+    /// Returns nothing if there are no addresses starting with the prefix.
+    fn new(prefix: &[u8], is_case_sensitive: bool) -> Option<Self> {
+        let mut variant = Vec::with_capacity(prefix.len());
+        let mut alternatives = Vec::new();
+        for character in prefix {
+            let mut options = vec![*character];
+            if !is_case_sensitive {
+                options = vec![
+                    character.to_ascii_lowercase(),
+                    character.to_ascii_uppercase(),
+                ];
+                options.dedup();
             }
+            options.retain(|option| BASE58_CHARSET.contains(option));
+
+            let first = *options.first()?;
+            if let Some(second) = options.get(1) {
+                alternatives.push((variant.len(), [first, *second]));
+            }
+            variant.push(first);
         }
-        if variants.len() > BASE58_MAX_VARIANTS {
-            return false;
+        Some(Self {
+            variant,
+            alternatives,
+        })
+    }
+
+    /// The number of variants, or nothing if that is too many to count.
+    fn count(&self) -> Option<usize> {
+        // Every character that can be written in two ways doubles it.
+        let doublings = u32::try_from(self.alternatives.len()).ok()?;
+        1usize.checked_shl(doublings)
+    }
+
+    /// Adds the ranges of public key hashes that have all the addresses
+    /// starting with any of the variants to `ranges`.
+    fn add_ranges(mut self, ranges: &mut Vec<Base58Range>) {
+        for index in 0..self.count().unwrap_or(0) {
+            for (bit, (position, options)) in self.alternatives.iter().enumerate() {
+                self.variant[*position] = options[index >> bit & 1];
+            }
+            base58_variant_ranges(&self.variant, ranges);
         }
     }
-    true
+}
+
+/// Follows a number by one more Base58 digit. Returns nothing if that makes
+/// it too large for a payload.
+fn push_base58_digit(
+    mut number: [u8; BASE58_PAYLOAD_LEN],
+    digit: u8,
+) -> Option<[u8; BASE58_PAYLOAD_LEN]> {
+    let mut carry = u32::from(digit);
+    for byte in number.iter_mut().rev() {
+        carry += u32::from(*byte) * 58;
+        *byte = carry as u8;
+        carry >>= 8;
+    }
+    (carry == 0).then_some(number)
 }
 
 /// Adds the ranges of public key hashes that have all the addresses starting
-/// with a (case sensitive) prefix to `ranges`.
-fn base58_ranges(prefix: &[u8], ranges: &mut Vec<Base58Range>) {
+/// with one variant of a prefix (a case sensitive one) to `ranges`.
+fn base58_variant_ranges(prefix: &[u8], ranges: &mut Vec<Base58Range>) {
     // Every leading '1' of an address is a leading zero byte of the payload,
     // the rest of the address is the rest of the payload as a number.
     let zeros = prefix
@@ -893,33 +913,30 @@ fn base58_ranges(prefix: &[u8], ranges: &mut Vec<Base58Range>) {
     smallest[zeros] = 1;
 
     // The prefix sets the first digits of the number, try every number of
-    // digits that could follow them.
-    for len in digits.len()..=BASE58_MAX_ADDRESS_LEN {
-        let number = |fill: u8| {
-            let mut number = [0u8; BASE58_PAYLOAD_LEN];
-            let fill = std::iter::repeat_n(fill, len - digits.len());
-            for digit in digits.iter().copied().chain(fill) {
-                let mut carry = u32::from(digit);
-                for byte in number.iter_mut().rev() {
-                    carry += u32::from(*byte) * 58;
-                    *byte = carry as u8;
-                    carry >>= 8;
-                }
-                if carry != 0 {
-                    return None;
-                }
-            }
-            Some(number)
-        };
-
+    // digits that could follow them. Zeros give the first number of that
+    // length, and the highest digit gives the last one.
+    let first = digits
+        .iter()
+        .try_fold([0u8; BASE58_PAYLOAD_LEN], |number, digit| {
+            push_base58_digit(number, *digit)
+        });
+    let Some(mut first) = first else {
+        return;
+    };
+    let mut last = Some(first);
+    for _ in digits.len()..=BASE58_MAX_ADDRESS_LEN {
         // Too large numbers have no first, too small ones have a last that
         // is too small.
-        let Some(first) = number(0) else { break };
-        let last = number(57).unwrap_or(largest);
-        if first > largest || last < smallest {
-            continue;
+        let last_or_largest = last.unwrap_or(largest);
+        if first <= largest && last_or_largest >= smallest {
+            add_range(first.max(smallest), last_or_largest.min(largest));
         }
-        add_range(first.max(smallest), last.min(largest));
+
+        let Some(next) = push_base58_digit(first, 0) else {
+            break;
+        };
+        first = next;
+        last = last.and_then(|last| push_base58_digit(last, 57));
     }
 }
 

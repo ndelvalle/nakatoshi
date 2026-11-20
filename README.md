@@ -46,7 +46,7 @@ Arguments:
 
 Options:
   -i, --input-file <input-file>  File with prefixes to match addresses with
-  -t, --threads <threads>        Number of threads to be used [default: "The number of CPUs available on the current system"]
+  -t, --threads <threads>        Number of threads to be used [default: the number of CPUs]
   -c, --case-sensitive           Use case sensitive comparison to match addresses
   -b, --bech32                   Use Bech32 addresses. Starting with bc1q (Lowercase address)
   -r, --taproot                  Use Taproot addresses. Starting with bc1p (Lowercase address) [alias: --p2tr]

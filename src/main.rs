@@ -2,8 +2,7 @@ use bitcoin::secp256k1::Secp256k1;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde_json::json;
 use std::fs;
-use std::io::BufRead;
-use std::io::BufReader;
+use std::num::NonZeroUsize;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -32,9 +31,8 @@ fn main() {
     let is_keep_going = matches.get_flag("keep-going");
 
     let num_threads = matches
-        .get_one::<String>("threads")
-        .and_then(|num_threads| num_threads.parse().ok())
-        .unwrap_or_else(num_cpus::get);
+        .get_one::<NonZeroUsize>("threads")
+        .map_or_else(num_cpus::get, |num_threads| num_threads.get());
 
     let prefixes = match matches.get_one::<String>("prefix") {
         Some(prefix) => vec![prefix.to_owned()],
@@ -48,6 +46,17 @@ fn main() {
     }
 
     let matcher = PrefixMatcher::new(&prefixes, is_case_sensitive, address_type);
+    let matcher = matcher.unwrap_or_else(|_| {
+        let limit = address::BASE58_MAX_VARIANTS;
+        exit_with_error(if is_case_sensitive {
+            format!("There are more than {limit} prefixes")
+        } else {
+            format!(
+                "The prefixes can be written in more than {limit} ways in upper and lowercase. \
+                 Use fewer or shorter prefixes, or --case-sensitive"
+            )
+        })
+    });
     if matcher.is_empty() {
         let subject = match prefixes.as_slice() {
             [prefix] => format!("\"{prefix}\""),
@@ -152,12 +161,11 @@ fn address_json(bitcoin_address: &BitcoinAddress, attempts: u64) -> serde_json::
 }
 
 fn get_prefixes_from_file(file_name: &str) -> Vec<String> {
-    let file = fs::File::open(file_name).unwrap();
-    let buffer = BufReader::new(file);
+    let contents = fs::read_to_string(file_name)
+        .unwrap_or_else(|error| exit_with_error(format!("Failed to read {file_name}: {error}")));
 
-    let mut prefixes = buffer
+    let mut prefixes = contents
         .lines()
-        .map(|line| line.expect("Failed to read Bitcoin address pattern from input file"))
         .map(|line| line.trim().to_owned())
         .filter(|line| !line.is_empty())
         .collect::<Vec<String>>();
@@ -342,8 +350,6 @@ mod tests {
                 (AddressType::Legacy, false, 4),
                 (AddressType::Legacy, false, 9),
                 (AddressType::Legacy, true, 34),
-                // Too many variants, this uses the slow matcher.
-                (AddressType::Legacy, false, 30),
             ] {
                 let is_legacy = address_type == AddressType::Legacy;
                 let secret_key = keys.secret_keys(index)[0];
@@ -352,6 +358,7 @@ mod tests {
                 let hash = address.public_key.pubkey_hash().to_byte_array();
                 let matches = |prefix: String| {
                     let matcher = PrefixMatcher::new(&[prefix], is_case_sensitive, address_type);
+                    let matcher = matcher.unwrap();
                     if address_type == AddressType::Taproot {
                         let program = address.address.witness_program().unwrap();
                         let output_key = program.program().as_bytes().try_into().unwrap();
@@ -402,6 +409,7 @@ mod tests {
         let mut matches = 0;
         for prefix in prefixes {
             let matcher = PrefixMatcher::new(&[prefix.to_string()], false, AddressType::Taproot);
+            let matcher = matcher.unwrap();
             for index in 0..batch_len {
                 let output_key = keys.output_key(index);
                 let secret_key = keys.secret_keys(index)[0];
@@ -422,7 +430,7 @@ mod tests {
     }
 
     #[test]
-    fn base58_ranges_agree_with_slow_matcher() {
+    fn base58_ranges_agree_with_address() {
         let secp = Secp256k1::new();
         let mut keys = KeyWalker::new(&secp, true, AddressType::Legacy);
         let batch_len = keys.next_batch(&secp);
@@ -431,25 +439,44 @@ mod tests {
         let prefixes = [
             "1", "11", "1a", "1B", "1c2", "12", "1Q", "1z", "2", "1l", "1O",
         ];
+        // Every one of them on its own, and then a list of prefixes. Some of
+        // those are the start of another one, so their ranges overlap.
+        let mut lists: Vec<Vec<String>> = prefixes
+            .iter()
+            .map(|prefix| vec![prefix.to_string()])
+            .collect();
+        lists.push(
+            ["1c2", "1c", "11", "1a", "1aB", "12", "2", "1l"]
+                .map(String::from)
+                .to_vec(),
+        );
+
         for is_case_sensitive in [true, false] {
             let mut matches = 0;
-            for prefix in prefixes {
-                let prefixes = [prefix.to_string()];
+            for prefixes in &lists {
                 let address_type = AddressType::Legacy;
-                let matcher = PrefixMatcher::new(&prefixes, is_case_sensitive, address_type);
-                assert!(matches!(matcher, PrefixMatcher::Base58(_)));
+                let matcher = PrefixMatcher::new(prefixes, is_case_sensitive, address_type);
+                let matcher = matcher.unwrap();
 
                 for index in 0..batch_len {
                     for hash in keys.pubkey_hashes(index) {
                         let mut payload = [0u8; 21];
                         payload[1..].copy_from_slice(&hash);
                         let address = bitcoin::base58::encode_check(&payload);
-                        let expected = if is_case_sensitive {
-                            address.starts_with(prefix)
-                        } else {
-                            address.to_lowercase().starts_with(&prefix.to_lowercase())
-                        };
-                        assert_eq!(matcher.matches(&hash), expected, "{} {}", prefix, address);
+                        let expected = prefixes.iter().any(|prefix| {
+                            if is_case_sensitive {
+                                address.starts_with(prefix.as_str())
+                            } else {
+                                address.to_lowercase().starts_with(&prefix.to_lowercase())
+                            }
+                        });
+                        assert_eq!(
+                            matcher.matches(&hash),
+                            expected,
+                            "{:?} {}",
+                            prefixes,
+                            address
+                        );
                         matches += usize::from(expected);
                     }
                 }
@@ -459,9 +486,33 @@ mod tests {
     }
 
     #[test]
+    fn matcher_fails_for_too_many_variants() {
+        let new = |prefixes: &[String], is_case_sensitive: bool| {
+            PrefixMatcher::new(prefixes, is_case_sensitive, AddressType::Legacy)
+        };
+
+        // Every one of these letters can be written in two ways.
+        let letters = [format!("1{}", "a".repeat(30))];
+        assert!(new(&letters, false).is_err());
+        assert!(new(&letters, true).is_ok());
+        // A digit can only be written in one way.
+        let digits = [format!("1{}", "2".repeat(30))];
+        assert!(new(&digits, false).is_ok());
+
+        // The variants of all the prefixes count.
+        let prefix = format!("1{}", "a".repeat(10));
+        let limit = crate::address::BASE58_MAX_VARIANTS;
+        let prefixes = vec![prefix; limit / 1024 + 1];
+        assert!(new(&prefixes, false).is_err());
+        assert!(new(&prefixes[..4], false).is_ok());
+    }
+
+    #[test]
     fn matcher_is_empty_for_impossible_prefixes() {
         let is_empty = |prefix: &str, is_case_sensitive: bool, address_type: AddressType| {
-            PrefixMatcher::new(&[prefix.to_string()], is_case_sensitive, address_type).is_empty()
+            let matcher =
+                PrefixMatcher::new(&[prefix.to_string()], is_case_sensitive, address_type);
+            matcher.unwrap().is_empty()
         };
 
         assert!(!is_empty("1Kids", false, AddressType::Legacy));
