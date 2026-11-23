@@ -126,7 +126,7 @@ every attempt takes a lot more work.
 The result looks like this:
 
 ```json
-{"address":"1Kids...","address_type":"legacy","attempts":1052817,"private_key":"L1...","public_key":"03..."}
+{"private_key":"L1...","public_key":"03...","address":"1Kids...","address_type":"legacy","attempts":1052817}
 ```
 
 The private key is in [WIF](https://en.bitcoin.it/wiki/Wallet_import_format), which doesn't say
