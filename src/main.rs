@@ -135,11 +135,9 @@ fn main() {
 
             if is_keep_going {
                 let result = address_json(&address, progress.position());
-                let is_printed = progress.suspend(|| writeln!(io::stdout(), "{result}").is_ok());
-                if !is_printed {
-                    // Nobody is reading the matches anymore.
+                if let Err(error) = progress.suspend(|| print_result(&result)) {
                     progress.finish_and_clear();
-                    std::process::exit(0);
+                    exit_after_failed_write(&error);
                 }
             } else {
                 let mut found = found.lock().unwrap();
@@ -157,7 +155,9 @@ fn main() {
         .expect("Failed to find Bitcoin address match");
     progress.finish_and_clear();
 
-    print!("{}", address_json(&bitcoin_address, attempts));
+    if let Err(error) = print_result(&address_json(&bitcoin_address, attempts)) {
+        exit_after_failed_write(&error);
+    }
 }
 
 fn address_json(bitcoin_address: &BitcoinAddress, attempts: u64) -> serde_json::Value {
@@ -168,6 +168,23 @@ fn address_json(bitcoin_address: &BitcoinAddress, attempts: u64) -> serde_json::
         "address_type": bitcoin_address.address_type.name(),
         "attempts": attempts
     })
+}
+
+/// Prints a result as a line of JSON, and makes sure that all of it is written.
+fn print_result(result: &serde_json::Value) -> io::Result<()> {
+    let mut stdout = io::stdout().lock();
+    writeln!(stdout, "{result}")?;
+    stdout.flush()
+}
+
+/// Exits after a result could not be written. A closed output is how a search
+/// with --keep-going is stopped, so that is not an error.
+fn exit_after_failed_write(error: &io::Error) -> ! {
+    if error.kind() == io::ErrorKind::BrokenPipe {
+        std::process::exit(0);
+    }
+    eprintln!("error: Failed to write the result: {error}");
+    std::process::exit(1);
 }
 
 /// Prints an error the way the argument parser does, and exits.

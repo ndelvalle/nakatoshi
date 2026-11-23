@@ -123,6 +123,52 @@ fn stops_quietly_when_the_matches_are_not_read_anymore() {
 }
 
 #[test]
+fn stops_quietly_when_the_result_is_not_read() {
+    let (reader, writer) = std::io::pipe().unwrap();
+    drop(reader);
+    let output = Command::new(env!("CARGO_BIN_EXE_nakatoshi"))
+        .arg("1a")
+        .stdout(writer)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn fails_when_the_result_cannot_be_written() {
+    for args in [&["1a"][..], &["--keep-going", "1a"]] {
+        let full = std::fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/full")
+            .unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_nakatoshi"))
+            .args(args)
+            .stdout(full)
+            .output()
+            .unwrap();
+
+        assert_eq!(output.status.code(), Some(1), "{args:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(stderr.contains("Failed to write the result"), "{stderr}");
+    }
+}
+
+#[test]
+fn prints_the_private_key_before_the_address() {
+    let output = nakatoshi(&["1a"]);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    // A result that is cut off then never has an address without its key.
+    let private_key = stdout.find("\"private_key\":").unwrap();
+    let address = stdout.find("\"address\":").unwrap();
+    assert!(private_key < address, "{stdout}");
+    assert!(stdout.ends_with("}\n"), "{stdout}");
+}
+
+#[test]
 fn fails_without_a_prefix() {
     assert!(error(&[]).contains("required arguments were not provided"));
 }
