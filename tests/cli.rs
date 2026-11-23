@@ -19,7 +19,14 @@ fn address(args: &[&str]) -> String {
     assert!(result["private_key"].is_string());
     assert!(result["public_key"].is_string());
     assert!(result["attempts"].is_u64());
-    result["address"].as_str().unwrap().to_owned()
+    let address = result["address"].as_str().unwrap().to_owned();
+    let address_type = match &address[..4] {
+        "bc1q" => "bech32",
+        "bc1p" => "taproot",
+        _ => "legacy",
+    };
+    assert_eq!(result["address_type"], address_type, "{address}");
+    address
 }
 
 // The error message of a search that is expected to fail.
@@ -129,6 +136,18 @@ fn fails_for_prefixes_without_addresses() {
     assert!(error(&["Kids", "0abc"]).contains("No address starts with any of the prefixes"));
     assert!(error(&["--bech32", "bc1qb"]).contains("Bech32 addresses start with bc1q"));
     assert!(error(&["--taproot", "bc1qq"]).contains("Taproot addresses start with bc1p"));
+}
+
+#[test]
+fn fails_for_prefixes_longer_than_an_address() {
+    let legacy = format!("1{}", "2".repeat(34));
+    assert!(error(&[&legacy]).contains("at most 34 characters long"));
+
+    let bech32 = format!("bc1q{}", "q".repeat(39));
+    assert!(error(&["--bech32", &bech32]).contains("42 characters long"));
+
+    let taproot = format!("bc1p{}", "q".repeat(59));
+    assert!(error(&["--taproot", &taproot]).contains("62 characters long"));
 }
 
 #[test]

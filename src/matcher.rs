@@ -3,6 +3,7 @@ use crate::address::AddressType;
 const BECH32_CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 const BECH32_PREFIX: &[u8; 4] = b"bc1q";
 const TAPROOT_PREFIX: &[u8; 4] = b"bc1p";
+const BECH32_CHECKSUM_LEN: usize = 6;
 
 // The prefixes are matched against this many bytes, which is all of a public
 // key hash and the start of an output key.
@@ -112,10 +113,11 @@ impl PrefixMatcher {
 /// Returns nothing if there are no addresses starting with the prefix.
 fn bech32_range(prefix: &str, start: &[u8; 4], encoded_len: usize) -> Option<HashRange> {
     let prefix = prefix.to_lowercase().into_bytes();
-    // Every character encodes 5 bits, the checksum that follows them is not
-    // looked at here.
-    let len = start.len() + (encoded_len * 8).div_ceil(5);
-    let prefix = &prefix[..prefix.len().min(len)];
+    // Every character encodes 5 bits, and the checksum follows them.
+    let data_len = (encoded_len * 8).div_ceil(5);
+    if prefix.len() > start.len() + data_len + BECH32_CHECKSUM_LEN {
+        return None;
+    }
 
     let start_len = prefix.len().min(start.len());
     if prefix[..start_len] != start[..start_len] {
@@ -128,6 +130,10 @@ fn bech32_range(prefix: &str, start: &[u8; 4], encoded_len: usize) -> Option<Has
     let mut last = [0xffu8; MATCHED_LEN];
     for (i, character) in prefix[start_len..].iter().enumerate() {
         let value = BECH32_CHARSET.iter().position(|c| c == character)?;
+        // The checksum depends on all of the data, so only its characters are checked.
+        if i >= data_len {
+            continue;
+        }
         for bit in 0..5 {
             let position = i * 5 + bit;
             let is_set = value & (0x10 >> bit) != 0;
@@ -323,8 +329,9 @@ mod tests {
                 let address =
                     BitcoinAddress::from_secret_key(&secp, secret_key, true, address_type);
                 let hash = address.public_key.pubkey_hash().to_byte_array();
-                let matches = |prefix: String| {
-                    let matcher = PrefixMatcher::new(&[prefix], is_case_sensitive, address_type);
+                let matches = |prefix: &str| {
+                    let prefixes = [prefix.to_string()];
+                    let matcher = PrefixMatcher::new(&prefixes, is_case_sensitive, address_type);
                     let matcher = matcher.unwrap();
                     if address_type == AddressType::Taproot {
                         let program = address.address.witness_program().unwrap();
@@ -341,7 +348,7 @@ mod tests {
                 } else {
                     address[..len].to_uppercase()
                 };
-                assert!(matches(prefix));
+                assert!(matches(&prefix), "{prefix} {address}");
 
                 // Change the last character of the prefix, it should not match anymore.
                 // The matcher does not look at the checksum at the end of a Base58
@@ -355,7 +362,7 @@ mod tests {
                     "q"
                 };
                 let prefix = format!("{}{}", &address[..len - 1], last);
-                assert!(!matches(prefix));
+                assert!(!matches(&prefix), "{prefix} {address}");
             }
         }
     }
@@ -411,7 +418,8 @@ mod tests {
                 let matcher = PrefixMatcher::new(prefixes, false, address_type).unwrap();
                 for (address, encoded) in &addresses {
                     let expected = address.starts_with_any(prefixes, false);
-                    assert_eq!(matcher.matches(encoded), expected, "{:?}", prefixes);
+                    let message = format!("{:?} {}", prefixes, address.address);
+                    assert_eq!(matcher.matches(encoded), expected, "{message}");
                     matches += usize::from(expected);
                 }
             }
@@ -526,5 +534,69 @@ mod tests {
         assert!(!is_empty("bc1pkd", false, AddressType::Taproot));
         assert!(is_empty("bc1pko", false, AddressType::Taproot));
         assert!(is_empty("bc1qkd", false, AddressType::Taproot));
+    }
+
+    #[test]
+    fn matcher_is_empty_for_impossible_long_prefixes() {
+        let is_empty = |prefix: &str, address_type: AddressType| {
+            let matcher = PrefixMatcher::new(&[prefix.to_string()], true, address_type);
+            matcher.unwrap().is_empty()
+        };
+
+        let addresses = [
+            (AddressType::Legacy, "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"),
+            (
+                AddressType::Bech32,
+                "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+            ),
+            (
+                AddressType::Taproot,
+                "bc1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5sspknck9",
+            ),
+        ];
+        for (address_type, address) in addresses {
+            assert!(!is_empty(address, address_type), "{address}");
+            assert!(is_empty(&format!("{address}q"), address_type), "{address}");
+        }
+
+        // The letter b is not in Bech32, not even in the checksum.
+        let (_, bech32) = addresses[1];
+        let bech32 = format!("{}b", &bech32[..41]);
+        assert!(is_empty(&bech32, AddressType::Bech32));
+        let (_, taproot) = addresses[2];
+        let taproot = format!("{}b", &taproot[..61]);
+        assert!(is_empty(&taproot, AddressType::Taproot));
+        // Addresses with 34 characters only go up to 1Q.
+        let legacy = format!("1R{}", "q".repeat(32));
+        assert!(is_empty(&legacy, AddressType::Legacy));
+    }
+
+    #[test]
+    fn matcher_agrees_with_short_addresses() {
+        // Every leading zero byte is a 1, so the address of the zero hash has 27
+        // characters. The uncompressed address of the Bitcoin wiki example key has 33.
+        let addresses = [
+            (
+                "1111111111111111111114oLvT2",
+                ["12", "111111111111111111112"],
+            ),
+            ("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM", ["11", "16UwLM"]),
+        ];
+        let matches = |prefix: &str, hash: &[u8]| {
+            let matcher = PrefixMatcher::new(&[prefix.to_string()], true, AddressType::Legacy);
+            matcher.unwrap().matches(hash)
+        };
+
+        for (address, other_prefixes) in addresses {
+            let payload = bitcoin::base58::decode_check(address).unwrap();
+            let hash = &payload[1..];
+            for len in [1, 2, 6, 21, address.len()] {
+                let prefix = &address[..len];
+                assert!(matches(prefix, hash), "{prefix}");
+            }
+            for prefix in other_prefixes {
+                assert!(!matches(prefix, hash), "{prefix}");
+            }
+        }
     }
 }

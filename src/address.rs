@@ -12,10 +12,21 @@ pub enum AddressType {
     Taproot,
 }
 
+impl AddressType {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Legacy => "legacy",
+            Self::Bech32 => "bech32",
+            Self::Taproot => "taproot",
+        }
+    }
+}
+
 pub struct BitcoinAddress {
     pub private_key: PrivateKey,
     pub public_key: PublicKey,
     pub address: Address,
+    pub address_type: AddressType,
 }
 
 impl BitcoinAddress {
@@ -60,6 +71,7 @@ impl BitcoinAddress {
             private_key,
             public_key,
             address,
+            address_type,
         }
     }
 
@@ -109,11 +121,9 @@ mod tests {
         let address_type = AddressType::Legacy;
         let is_compressed = true;
         let bitcoin_address = BitcoinAddress::new(&secp, is_compressed, address_type);
+        let public_key = bitcoin_address.public_key.to_string();
 
-        let actual = bitcoin_address.public_key.to_string().len();
-        let expected = 66;
-
-        assert_eq!(actual, expected);
+        assert_eq!(public_key.len(), 66, "{public_key}");
     }
 
     #[test]
@@ -122,11 +132,9 @@ mod tests {
         let address_type = AddressType::Legacy;
         let is_compressed = false;
         let bitcoin_address = BitcoinAddress::new(&secp, is_compressed, address_type);
+        let public_key = bitcoin_address.public_key.to_string();
 
-        let actual = bitcoin_address.public_key.to_string().len();
-        let expected = 130;
-
-        assert_eq!(actual, expected);
+        assert_eq!(public_key.len(), 130, "{public_key}");
     }
 
     #[test]
@@ -137,7 +145,8 @@ mod tests {
         let bitcoin_address = BitcoinAddress::new(&secp, is_compressed, address_type);
         let address = bitcoin_address.address.to_string();
 
-        assert!(address.starts_with("bc1q"));
+        assert!(address.starts_with("bc1q"), "{address}");
+        assert_eq!(address.len(), 42, "{address}");
     }
 
     #[test]
@@ -148,21 +157,23 @@ mod tests {
         let bitcoin_address = BitcoinAddress::new(&secp, is_compressed, address_type);
         let address = bitcoin_address.address.to_string();
 
-        assert!(address.starts_with("bc1p"));
-        assert_eq!(address.len(), 62);
+        assert!(address.starts_with("bc1p"), "{address}");
+        assert_eq!(address.len(), 62, "{address}");
     }
 
     #[test]
     fn create_bitcoin_private_key() {
         let secp = Secp256k1::new();
         let address_type = AddressType::Legacy;
-        let is_compressed = true;
-        let bitcoin_address = BitcoinAddress::new(&secp, is_compressed, address_type);
+        // The version byte in front of the key gives every key the same length.
+        let formats = [(true, 52, &['K', 'L'][..]), (false, 51, &['5'][..])];
+        for (is_compressed, len, first_characters) in formats {
+            let bitcoin_address = BitcoinAddress::new(&secp, is_compressed, address_type);
+            let private_key = bitcoin_address.private_key.to_string();
 
-        let actual = bitcoin_address.private_key.to_string().len();
-        let expected = 52;
-
-        assert_eq!(actual, expected);
+            assert_eq!(private_key.len(), len, "{private_key}");
+            assert!(private_key.starts_with(first_characters), "{private_key}");
+        }
     }
 
     #[test]
@@ -172,10 +183,31 @@ mod tests {
         let is_compressed = true;
         let bitcoin_address = BitcoinAddress::new(&secp, is_compressed, address_type);
 
-        let actual = bitcoin_address.address.to_string().len();
-        let expected = 34;
+        let address = bitcoin_address.address.to_string();
 
-        assert_eq!(actual, expected);
+        // The Base58 length depends on the value of the hash, so it varies between keys.
+        assert!(address.starts_with('1'), "{address}");
+        assert!((26..=34).contains(&address.len()), "{address}");
+    }
+
+    #[test]
+    fn addresses_of_the_bitcoin_wiki_example() {
+        // The key of the example on the Bitcoin wiki. Its uncompressed address has 33 characters.
+        let secp = Secp256k1::new();
+        let secret_key: SecretKey =
+            "18e14a7b6a307f426a94f8114701e7c8e774e7f9a47e2c2035db29a206321725"
+                .parse()
+                .unwrap();
+        let expected = [
+            (true, "1PMycacnJaSqwwJqjawXBErnLsZ7RkXUAs"),
+            (false, "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM"),
+        ];
+        for (is_compressed, expected) in expected {
+            let address_type = AddressType::Legacy;
+            let address =
+                BitcoinAddress::from_secret_key(&secp, secret_key, is_compressed, address_type);
+            assert_eq!(address.address.to_string(), expected);
+        }
     }
 
     // The addresses of a key that is published with them.
