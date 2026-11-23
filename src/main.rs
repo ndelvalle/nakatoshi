@@ -62,12 +62,17 @@ fn main() {
             _ => "any of the prefixes".to_owned(),
         };
         let format = match address_type {
-            AddressType::Legacy => "Legacy addresses start with 1, and have no 0, O, I or l",
+            AddressType::Legacy => {
+                "Legacy addresses start with 1, have no 0, O, I or l, \
+                 and are at most 34 characters long"
+            }
             AddressType::Bech32 => {
-                "Bech32 addresses start with bc1q, and have no 1, b, i or o after that"
+                "Bech32 addresses start with bc1q, have no 1, b, i or o after that, \
+                 and are 42 characters long"
             }
             AddressType::Taproot => {
-                "Taproot addresses start with bc1p, and have no 1, b, i or o after that"
+                "Taproot addresses start with bc1p, have no 1, b, i or o after that, \
+                 and are 62 characters long"
             }
         };
         exit_with_error(format!("No address starts with {subject}. {format}"));
@@ -160,6 +165,7 @@ fn address_json(bitcoin_address: &BitcoinAddress, attempts: u64) -> serde_json::
         "private_key": bitcoin_address.private_key.to_string(),
         "public_key": bitcoin_address.public_key.to_string(),
         "address": bitcoin_address.address.to_string(),
+        "address_type": bitcoin_address.address_type.name(),
         "attempts": attempts
     })
 }

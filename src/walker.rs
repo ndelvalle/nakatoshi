@@ -461,8 +461,9 @@ mod tests {
                 }
                 let batch_len = keys.next_batch(&secp);
                 for index in 0..batch_len {
-                    let mut expected: Vec<[u8; 20]> = keys
-                        .secret_keys(index)
+                    let secret_keys = keys.secret_keys(index);
+                    let message = secret_keys[0].display_secret().to_string();
+                    let mut expected: Vec<[u8; 20]> = secret_keys
                         .into_iter()
                         .map(|secret_key| {
                             let address_type = AddressType::Legacy;
@@ -480,9 +481,10 @@ mod tests {
                     let mut hashes = keys.pubkey_hashes(index).to_vec();
                     expected.sort();
                     hashes.sort();
-                    assert_eq!(hashes, expected);
+                    assert_eq!(hashes, expected, "{message}");
                     // No key is tried twice.
-                    assert!(hashes.into_iter().all(|hash| seen.insert(hash)));
+                    let is_new = hashes.into_iter().all(|hash| seen.insert(hash));
+                    assert!(is_new, "{message}");
                 }
             }
         }
@@ -501,16 +503,18 @@ mod tests {
             let batch_len = keys.next_batch(&secp);
             for index in 0..batch_len {
                 let output_key = keys.output_key(index);
+                let secret_keys = keys.secret_keys(index);
+                let message = secret_keys[0].display_secret().to_string();
                 // Both secret keys have the same address.
-                for secret_key in keys.secret_keys(index) {
+                for secret_key in secret_keys {
                     let address_type = AddressType::Taproot;
                     let address =
                         BitcoinAddress::from_secret_key(&secp, secret_key, true, address_type);
                     let program = address.address.witness_program().unwrap();
-                    assert_eq!(program.program().as_bytes(), output_key);
+                    assert_eq!(program.program().as_bytes(), output_key, "{message}");
                 }
                 // No key is tried twice.
-                assert!(seen.insert(output_key));
+                assert!(seen.insert(output_key), "{message}");
             }
         }
     }
